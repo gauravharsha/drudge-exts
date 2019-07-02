@@ -1,4 +1,4 @@
-# Extension modules to drudge
+# Extension modules for drudge
 
 This repository contains drudge modules which are not broad enough to be added to the original software but very useful for specific applications.
 
