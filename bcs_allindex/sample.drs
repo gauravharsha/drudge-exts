@@ -1,0 +1,22 @@
+# Defining the pair creation and annihilation operators
+term1 = Pdag[p]
+term2 = P[q]
+
+# Check the commutator that we changed
+comm1 = simplify( (term1 | term2) )
+
+# Check the next commutator
+term1 = simplify( Pdag[p]*P[p] )
+
+# Evaluating Expectation Values -- the `rdm_list' is defined in the configuration file
+exp1 = eval_agp( term1, rdm_list )
+
+def write_rep(rep):
+    rep.add('Algebra ', )
+    rep.add('[Pdag_p, P_q]', comm1)
+    rep.add('< Pdag_p Pdag_p >', exp1)
+
+with report('test.html', 'quick ') as rep:
+   write_rep(rep)
+# with report('test.tex', 'quick ') as rep:
+#    write_rep(rep)
