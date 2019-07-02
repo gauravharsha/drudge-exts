@@ -1,0 +1,79 @@
+"""
+Drudge script to display test results for the Unitary Group generators and their mapping into the AGP or Projected BCS generators
+"""
+
+delK = KroneckerDelta
+p, q, r, s, a, b = all_orb_dumms[:6]
+V = IndexedBase('V')
+
+
+# Store E_pq
+E_pq = E_[p,q]
+E_qp = E_[q,p]
+E_pq = simplify(E_pq)
+
+
+# Store D_pq and Ddag_pq
+D_pq = eta[p]*E_pq - eta[q]*E_qp
+Ddag_pq = eta[p]*E_qp - eta[q]*E_pq
+
+
+# Metric
+comm1 = simplify( (simplify( D_pq | Ddag_pq ) ) )
+comm1 = comm1.merge().map2amps(factor)
+Metric = simplify( get_vev_agp( comm1 ) )
+Metric = simplify( Metric )
+Metric = Metric.merge().map2amps(factor)
+
+
+# Hamiltonian
+Pdag_pP_q = (1/2) * ( E_pq * E_pq - delK(p,q)*E_pq )
+Pdag_pP_q = simplify(Pdag_pP_q)
+Ham1 = einst(epsilon[p] * E_[p,p])
+Ham2 = sum((p, A), (q, A), Pdag_pP_q)
+Ham2 = simplify(Ham2)
+HamG = Ham1 - G*Ham2
+HamG = simplify(HamG)
+
+
+
+# A and B matrices
+AMatOp1 = simplify(HamG | Ddag_pq)
+AMatOp = simplify(D_pq | AMatOp1)
+AMat = simplify(get_vev_agp(AMatOp))
+AMat = simplify(AMat)
+AMat = simplify(AMat)
+AMatrix = AMat.merge().map2amps(factor)
+
+BMatOp1 = simplify( HamG |D_pq)
+BMatOp = -simplify( D_pq | BMatOp1)
+BMat = simplify(get_vev_agp(-BMatOp))
+BMat = simplify(BMat)
+BMat = simplify(BMat)
+BMatrix = BMat.merge().map2amps(factor)
+
+# A+B
+ApBOp = simplify( simplify( AMatOp + BMatOp ) )
+ApBMat = simplify( simplify( get_vev_agp( ApBOp ) ) )
+ApBMat = ApBMat.merge().map2amps(factor)
+
+# A-B
+AmBOp = simplify( simplify( AMatOp - BMatOp ) )
+AmBMat = simplify( simplify( get_vev_agp( AmBOp ) ) )
+AmBMat = AmBMat.merge().map2amps(factor)
+
+
+
+def write_rep(rep):
+    rep.add('AMatOp',AMatOp)
+    rep.add('BMatOp',BMatOp)
+    rep.add('A+B Op',ApBOp)
+    rep.add('A-B Op',AmBOp)
+    rep.add('Metric', Metric)
+    rep.add('AMatrix', AMatrix)
+    rep.add('BMatrix', BMatrix)
+    rep.add('A+B Mat',ApBMat)
+    rep.add('A-B Mat',AmBMat)
+
+with report('RPA_take2.html', 'RPA') as rep:
+    write_rep(rep)
