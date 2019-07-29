@@ -1,0 +1,37 @@
+"""
+Sample test drudge script to print some commutation rules
+
+Author: Gaurav Harsha
+Date: May 17, 2018
+Last Modified: May 17, 2018
+"""
+
+# Defining the tensor form of the operators
+jp = sum(J_p)
+jz = sum(J_)
+jm = sum(J_m)
+
+kp = sum(K_p)
+kz = sum(K_)
+km = sum(K_m)
+
+ypp = sum(Y_pp)
+ymm = sum(Y_mm)
+yzz = sum(Y_zz)
+
+ypm = sum(Y_pm)
+ymp = sum(Y_mp)
+ypz = sum(Y_pz)
+yzp = sum(Y_zp)
+ymz = sum(Y_mz)
+yzm = sum(Y_zm)
+
+# Su(2) commutation relations first
+
+print( simplify(jp | jm) == Integer(2)*jz)
+print( simplify(jz | jp) == jp)
+print( simplify(jz | jm) == Integer(-1)*jm)
+
+print( simplify(kp | km) == Integer(2)*kz)
+print( simplify(kz | kp) == kp)
+print( simplify(kz | km) == Integer(-1)*km)
