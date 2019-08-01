@@ -642,7 +642,7 @@ def get_vev_of_term(term,n1):
             break
     return [Term(sums=term.sums,amp = t_amp,vecs=())]
 
-_QUARTER = Rational(1,2)
+_QUARTER = Rational(1,4)
 _NEGHALF = -Rational(1,2)
 _NEGTWO = -Integer(2)
 _UNITY = Integer(1)
