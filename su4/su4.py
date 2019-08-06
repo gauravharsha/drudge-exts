@@ -39,7 +39,7 @@ class SU4LatticeDrudge(GenQuadDrudge):
     DEFAULT_Ymm = Vec('Y^{--}')
     DEFAULT_Yzz = Vec('Y^{zz}')
     DEFAULT_Ypz = Vec('Y^{+z}')
-    DEFAULT_Yzp = Vec('Y^{zp}')
+    DEFAULT_Yzp = Vec('Y^{z+}')
     DEFAULT_Ymz = Vec('Y^{-z}')
     DEFAULT_Yzm = Vec('Y^{z-}')
     
