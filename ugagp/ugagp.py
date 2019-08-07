@@ -418,7 +418,7 @@ class UnitaryGroupDrudge(GenQuadDrudge):
             h_tsr = tensor whose VEV is to be evaluated
         """
         transled = self._transl2agp(h_tsr)
-        transled = self._agp_dr.agp_simplify(transled,final_step=True)
+        transled = self._agp_dr.simplify(transled)
         res = self._agp_dr.get_vev(transled)
         return Tensor(self, res.terms)
 
