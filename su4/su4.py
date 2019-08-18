@@ -105,7 +105,7 @@ class SU4LatticeDrudge(GenQuadDrudge):
         self.ymp = ymp
         self.ypz = ypz
         self.yzp = yzp
-        self.ymz = ymp
+        self.ymz = ymz
         self.yzm = yzm
         
         self.set_name(**{
