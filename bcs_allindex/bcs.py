@@ -2,7 +2,7 @@
 Drudge for reduced BCS Hamiltonian.
 """
 
-import functools, re
+import functools, re, warnings
 
 from sympy import Integer, Symbol, IndexedBase, srepr
 
@@ -67,6 +67,13 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
             ctx, cartan=cartan, raise_=raise_, lower=lower, root=root,
             norm=norm, shift=shift, specials=specials, **kwargs
         )
+
+        # Any value of shift other than '-1' is incompatible with _nonzero_by_cartan
+        if shift != Integer(-1):
+            warnings.warn(
+                "Value of shift has been set to ", shift,
+                " which is incompatible with the filter _nonzero_by_cartan. Proceed with caution (or comment lines 163 to 165)."
+            )
 
         # Set the range and dummies.
         self.part_range = part_range
