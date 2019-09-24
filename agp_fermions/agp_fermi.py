@@ -54,7 +54,7 @@ class AGPFermi(GenQuadDrudge):
         bcs_N=PAIRING_CARTAN, bcs_Pdag=PAIRING_RAISE, bcs_P=PAIRING_LOWER,
         su2_Jz=SPIN_CARTAN, su2_Jp=SPIN_RAISE, su2_Jm=SPIN_LOWER,
         bcs_root=Integer(2), bcs_norm=Integer(1), bcs_shift=Integer(-1),
-        su2_root=Integer(2), su2_norm=Integer(1), su2_shift=Integer(0),
+        su2_root=Integer(1), su2_norm=Integer(2), su2_shift=Integer(0),
         **kwargs
     ):
 
@@ -154,10 +154,12 @@ class AGPFermi(GenQuadDrudge):
             c_=self.an, c_dag=self.cr, N=self.N, P=self.P, Pdag=self.Pdag,
             agproot=bcs_root, agpnorm=bcs_norm, agpshift=bcs_shift,
             S_p=self.S_p, S_z=self.S_z, S_m=self.S_m,
+            su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift,
         )
         self._spec = spec
         self._swapper = functools.partial(_swap_agpf, spec=spec)
 
+    _latex_vec_mul = ' '
     @property
     def swapper(self) -> GenQuadDrudge.Swapper:
         """The swapper for the AGPF algebra -- invoked only when at least one
@@ -188,6 +190,9 @@ _AGPFSpec = collections.namedtuple('_AGPFSpec',[
     'S_p',
     'S_z',
     'S_m',
+    'su2root',
+    'su2norm',
+    'su2shift',
 ])
 
 _P_DAG = 0
@@ -250,11 +255,13 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     agp_norm = spec.agpnorm
     agp_shift = spec.agpshift
 
+    su2_root = spec.su2root
+    su2_norm = spec.su2norm
+    su2_shift = spec.su2shift
+
     if char1 == _P_DAG:
         if char2 == _P_DAG:
-            if key1 < key2:
-                return None
-            elif key1 > key2:
+            if key1 > key2:
                 return _UNITY, _NOUGHT
             else:
                 return None
@@ -264,9 +271,7 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
         if char2 == _P_DAG:
             return _UNITY, agp_root * delta * spec.Pdag[indice1]
         elif char2 == _N_:
-            if key1 < key2:
-                return None
-            elif key1 > key2:
+            if key1 > key2:
                 return _UNITY, _NOUGHT
             else:
                 return None
@@ -278,9 +283,55 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
         elif char2 == _N_:
             return _UNITY, agp_root * delta * spec.P[indice1]
         elif char2 == _P_:
-            if key1 < key2:
+            if key1 > key2:
+                return _UNITY, _NOUGHT
+            else:
                 return None
-            elif key1 > key2:
+        else:
+            return None
+    elif char1 == _S_P:
+        if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_:
+            return _UNITY, _NOUGHT
+        elif char2 == _P_:
+            return _UNITY, _NOUGHT
+        elif char2 == _S_P:
+            if key1 > key2:
+                return _UNITY, _NOUGHT
+            else:
+                return None
+        else:
+            return None
+    elif char1 == _S_Z:
+        if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_:
+            return _UNITY, _NOUGHT
+        elif char2 == _P_:
+            return _UNITY, _NOUGHT
+        elif char2 == _S_P:
+            return _UNITY, su2_root * delta * spec.S_p[indice1]
+        elif char2 == _S_Z:
+            if key1 > key2:
+                return _UNITY, _NOUGHT
+            else:
+                return None
+        else:
+            return None
+    elif char1 == _S_M:
+        if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_:
+            return _UNITY, _NOUGHT
+        elif char2 == _P_:
+            return _UNITY, _NOUGHT
+        elif char2 == _S_P:
+            return _UNITY, - su2_norm * delta * (spec.S_z[indice1] + su2_shift)
+        elif char2 == _S_Z:
+            return _UNITY, su2_root * delta * spec.S_m[indice1]
+        elif char2 == _S_M:
+            if key1 > key2:
                 return _UNITY, _NOUGHT
             else:
                 return None
