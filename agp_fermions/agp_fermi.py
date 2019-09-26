@@ -3,7 +3,7 @@ Drudge for BCS-AGP-fermionic algebra
 """
 import collections, functools, operator, re, typing
 
-from sympy import Integer, Symbol, IndexedBase, KroneckerDelta, factorial, Function, srepr
+from sympy import Integer, Symbol, Rational, IndexedBase, KroneckerDelta, factorial, Function, srepr
 from sympy.utilities.iterables import default_sort_key
 
 from drudge import Tensor, TensorDef
@@ -159,7 +159,9 @@ class AGPFermi(GenQuadDrudge):
         self._spec = spec
         self._swapper = functools.partial(_swap_agpf, spec=spec)
 
+    # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
+
     @property
     def swapper(self) -> GenQuadDrudge.Swapper:
         """The swapper for the AGPF algebra -- invoked only when at least one
@@ -337,11 +339,100 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
                 return None
         else:
             return None
+    elif char1 == _C_DAG:
+        if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_:
+            return _UNITY, _NEGONE * delta * spec.c_dag[indice1]
+        elif char2 == _P_:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NEGONE * delta * spec.c_[indice1[0], SpinOneHalf.DOWN]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, delta * spec.c_[indice1[0], SpinOneHalf.UP]
+            else:
+                assert False
+        elif char2 == _S_P:
+            return _UNITY, _NOUGHT
+        elif char2 == _S_Z:
+            return _UNITY, _NEGHALF * delta * spec.c_dag[indice1]
+        elif char2 == _S_M:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpineOneHalf.UP]
+            else:
+                assert False
+        elif char2 == _C_DAG:
+            if indice1[1] == indice2[1]:
+                if key1 > key2:
+                    return _NEGONE, _NOUGHT
+                else:
+                    return None
+            elif indice2[1] == SpinOneHalf.UP:
+                return _NEGONE, _NOUGHT
+            else:
+                return None
+        elif char2 == _C_:
+            if key1 > key2:
+                if indice1[1] == indice2[1]:
+                    return _NEGONE, delta
+                else:
+                    return _NEGONE, _NOUGHT
+            else:
+                return None
+    elif char1 == _C_:
+        if char2 == _P_DAG:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
+            else:
+                assert False
+        elif char2 == _N_:
+            return _UNITY, delta * spec.c_[indice1]
+        elif char2 == _P_:
+            return _UNITY, _NOUGHT
+        elif char2 == _S_P:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, delta * spec.c_[indice1[0], SpinOneHalf.DOWN]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NOUGHT
+            else:
+                assert False
+        elif char2 == _S_Z:
+            return _UNITY, _HALF * delta * spec.c_[indice1]
+        elif char2 == _S_M:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NOUGHT
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, delta * spec.c_[indice1[0], SpinOneHalf.UP]
+            else:
+                assert False
+        elif char2 == _C_DAG:
+            if key1 > key2:
+                if indice1[1] == indice2[1]:
+                    return _NEGONE, delta
+                else:
+                    return _NEGONE, _NOUGHT
+            else:
+                return None
+        elif char2 == _C_:
+            if indice1[1] == indice2[1]:
+                if key1 > key2:
+                    return _NEGONE, _NOUGHT
+                else:
+                    return None
+            elif indice2[1] == SpinOneHalf.DOWN:
+                return _NEGONE, _NOUGHT
+            else:
+                return None
     else:
-        return None
-        # assert False
+        # return None
+        assert False
 
 _UNITY = Integer(1)
+_HALF = Rational(1,2)
 _NOUGHT = Integer(0)
 _NEGONE = Integer(-1)
+_NEGHALF = -Rational(1,2)
 _TWO = Integer(2)
