@@ -3,7 +3,12 @@ Drudge for BCS-AGP-fermionic algebra
 """
 import collections, functools, operator, re, typing
 
-from sympy import Integer, Symbol, Rational, IndexedBase, KroneckerDelta, factorial, Function, srepr
+from sympy import (
+    sympify, Symbol, KroneckerDelta, Eq, solveset, S, Integer, Add, Mul, Number,
+    Indexed, IndexedBase, Expr, Basic, Pow, Wild, conjugate, Sum, Piecewise,
+    Intersection, expand_power_base, expand_power_exp, Rational
+)
+
 from sympy.utilities.iterables import default_sort_key
 
 from drudge import Tensor, TensorDef
@@ -158,6 +163,7 @@ class AGPFermi(GenQuadDrudge):
         )
         self._spec = spec
         self._swapper = functools.partial(_swap_agpf, spec=spec)
+        self._extract_su2 = lambda x: _get_su2_vecs(x, spec=spec)
 
     # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
@@ -179,6 +185,44 @@ class AGPFermi(GenQuadDrudge):
             return self.fermi_dr._latex_vec(vec)
         else:
             return super()._latex_vec(vec)
+
+    def normal_order(self, terms, **kwargs):
+        """Normal ordering sequence for algebra
+        """
+
+        noed = super().normal_order(terms, **kwargs)
+        noed = noed.filter(_nonzero_by_nilp)
+        return noed
+
+    def canon_indices(self, expression: Tensor):
+        """Bind function to canonicalize free / external indices.
+        """
+        return expression.bind(_canonicalize_indices)
+
+    def extract_su2(self, expression: Tensor):
+        """Bind function to map fermion strings to obvious SU2 (Pairing as well
+        as spin-flip operators)
+        """
+        return expression.bind(self._extract_su2)
+
+    def spin_flip_to_fermi(self, tnsr: Tensor):
+        """Substitute all the Spin flip operators with their respective fermionic
+        strings"""
+
+        gen_idx = self.all_orb_dumms[0]
+        sp_def = dr.define(
+            SP, gen_idx,
+            cr[gen_idx, SpinOneHalf.UP]*an[gen_idx, SpinOneHalf.DOWN]
+        )
+        sm_def = dr.define(
+            SM, gen_idx,
+            cr[gen_idx, SpinOneHalf.DOWN]*an[gen_idx, SpinOneHalf.UP]
+        )
+        spin_defs = [sp_def, sm_def]
+
+        return Tensor(
+            self, tnsr.subst_all(spin_defs).terms
+        )
 
 _AGPFSpec = collections.namedtuple('_AGPFSpec',[
     'c_',
@@ -429,6 +473,253 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     else:
         # return None
         assert False
+
+def _nonzero_by_nilp(term: Term):
+    """Need a function to filter terms based on nilpotency of fermion operators
+    """
+    vecs = term.vecs
+    cartans = (AGPFermi.PAIRING_CARTAN, AGPFermi.SPIN_CARTAN)
+    return all(
+        (
+            not ((vecs[i].base not in cartans) and (vecs[i] == vecs[i+1]))
+        )
+        for i in range(0, len(vecs)-1)
+    )
+
+def _get_su2_vecs(term: Term, spec: _AGPFSpec):
+    """Given a term with a list of vectors, extract the obvious BCS vectors
+    NOTE: This bind function assumes that the term has already been simplified
+    """
+    vecs = term.vecs
+    amp = term.amp
+    new_vecs = []
+
+    Pdag = spec.Pdag
+    P = spec.P
+    N = spec.N
+
+    SP = spec.S_p
+    SM = spec.S_m
+    SZ = spec.S_z
+
+    cr = (spec.c_dag.base, spec.c_dag.indices[0])
+    an = (spec.c_.base, spec.c_.indices[0])
+
+    if len(vecs) <= 1:
+        return term
+    else:
+        i = 0
+        while i < (len(vecs)-1):
+
+            v1 = (vecs[i].base, vecs[i].indices[0])
+            v2 = (vecs[i+1].base, vecs[i+1].indices[0])
+
+            if (v1 == cr):
+                if (v2 == cr):
+                    if (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                        # if both creation, and have same lattice index,
+                        #   then assuming term is simplified, the spins must be
+                        #   opposite.
+                        new_vecs.append(Pdag[vecs[i].indices[1]])
+                        i += 2
+                        continue
+                    else:
+                        new_vecs.append(vecs[i])
+                        i += 1
+                        continue
+                elif (v2==an):
+                    if (vecs[i].indices[1:] == vecs[i+1].indices[1:]):
+                        new_vecs.append(N[vecs[i].indices[1]])
+                        amp /= 2
+                        i += 2
+                        continue
+                    elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                        if vecs[i].indices[2] == SpinOneHalf.UP:
+                            new_vecs.append(SP[vecs[i].indices[1]])
+                            i += 2
+                            continue
+                        else:
+                            new_vecs.append(SM[vecs[i].indices[1]])
+                            i += 2
+                            continue
+                    else:
+                        new_vecs.append(vecs[i])
+                        i += 1
+                        continue
+                else:
+                    raise ValueError('Input term is not simplified')
+            elif (v1 == an):
+                if (v2 == an):
+                    if (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                        # if both annihilation, and have same lattice index,
+                        #   then assuming the term is simplified, the spins
+                        #    must be opposite (first one would be DOWN)
+                        new_vecs.append(P[vecs[i].indices[1]])
+                        i += 2
+                        continue
+                    else:
+                        new_vecs.append(vecs[i])
+                        i += 1
+                        continue
+            else:
+                new_vecs.append(vecs[i])
+                i += 1
+                continue
+        if i == len(vecs) - 1:
+            new_vecs.append(vecs[i])
+    return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
+
+# def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
+#     """Given a term with a list of fermionic vectors, extract the various
+#     partitions of N, Pdag and P kind of terms.
+#     """
+#     vecs = term.vecs
+#     amp = term.amp
+#     new_vecs = []
+#
+#     Pdag = spec.Pdag
+#     P = spec.P
+#     N = spec.N
+#
+#     SP = spec.S_p
+#     SM = spec.S_m
+#     SZ = spec.S_z
+#
+#     cr = (spec.c_dag.base, spec.c_dag.indices[0])
+#     an = (spec.c_.base, spec.c_.indices[0])
+#
+#     for v in vecs:
+#         if v.base == cr.base:
+#             new_vecs.append(v)
+#
+#     if len(vecs)%odd != 0:
+#         # Odd number of creation and annihilation operators
+#         return []
+#
+#     return []
+
+def _canonicalize_indices(term: Term):
+    """Here, we canonicalize the free indices in the tensor expressions - that
+    is replace the higher key indices with lower key ones everywhere
+    """
+
+    # get the new term and substs
+    new_amp, substs = _try_simpl_unresolved_deltas(term.amp)
+
+    # construct the new term
+    new_term = term.subst(substs)
+
+    return [Term(sums=new_term.sums, amp=new_amp, vecs=new_term.vecs)]
+
+def _try_simpl_unresolved_deltas(amp: Expr):
+    """Try some simplification on unresolved deltas.
+
+    This function aims to normalize the usage of free indices in the amplitude
+    when a delta factor is present to require their equality.
+
+    TODO: Unify the treatment here and the treatment for summation dummies.
+    """
+
+    substs = {}
+    if not (isinstance(amp, Mul) or isinstance(amp, KroneckerDelta)):
+        return amp, substs
+
+    deltas = _UNITY
+    others = _UNITY
+    if isinstance(amp, KroneckerDelta):
+        arg1, arg2 = amp.args
+
+        # Here, only the simplest case is treated, a * x = b * y, with a, b
+        # being numbers and x, y being atomic symbols.  One of the symbols
+        # can be missing.  But not both, since SymPy will automatically
+        # resolve a delta between two numbers.
+
+        factor1, symb1 = _parse_factor_symb(arg1)
+        factor2, symb2 = _parse_factor_symb(arg2)
+
+        if factor1 is not None and factor2 is not None:
+            if symb1 is None:
+                assert symb2 is not None
+                arg1 = symb2
+                arg2 = factor1 / factor2
+            elif symb2 is None:
+                assert symb1 is not None
+                arg1 = symb1
+                arg2 = factor2 / factor1
+            elif sympy_key(symb1) < sympy_key(symb2):
+                arg1 = symb2
+                arg2 = factor1 * symb1 / factor2
+            else:
+                arg1 = symb1
+                arg2 = factor2 * symb2 / factor1
+            substs[arg1] = arg2
+        deltas *= KroneckerDelta(arg1, arg2)
+    else:
+        for i in amp.args:
+            if isinstance(i, KroneckerDelta):
+                arg1, arg2 = i.args
+
+                # Here, only the simplest case is treated, a * x = b * y, with a, b
+                # being numbers and x, y being atomic symbols.  One of the symbols
+                # can be missing.  But not both, since SymPy will automatically
+                # resolve a delta between two numbers.
+
+                factor1, symb1 = _parse_factor_symb(arg1)
+                factor2, symb2 = _parse_factor_symb(arg2)
+                if factor1 is not None and factor2 is not None:
+                    if symb1 is None:
+                        assert symb2 is not None
+                        arg1 = symb2
+                        arg2 = factor1 / factor2
+                        arg2new = arg2
+                    elif symb2 is None:
+                        assert symb1 is not None
+                        arg1 = symb1
+                        arg2 = factor2 / factor1
+                        arg2new = arg2
+                    elif sympy_key(symb1) < sympy_key(symb2):
+                        arg1 = symb2
+                        arg2new = factor1 * symb1 / factor2
+                    else:
+                        arg1 = symb1
+                        arg2new = factor2 * symb2 / factor1
+                    substs[arg1] = arg2new
+                deltas *= KroneckerDelta(arg1, arg2)
+            else:
+                others *= i
+
+    others = others.xreplace(substs)
+    return deltas * others, substs
+
+def _parse_factor_symb(expr: Expr):
+    """Parse a number times a symbol.
+
+    When the expression is of that form, that number and the only symbol is
+    returned.  For plain numbers, the symbol part is none.  For completely
+    non-compliant expressions, a pair of none is going to be returned.
+    """
+
+    if isinstance(expr, Symbol):
+        return _UNITY, expr
+    elif isinstance(expr, Number):
+        return expr, None
+    elif isinstance(expr, Mul):
+        factor = _UNITY
+        symb = None
+        for i in expr.args:
+            if isinstance(i, Number):
+                factor *= i
+            elif isinstance(i, Symbol):
+                if symb is None:
+                    symb = i
+                else:
+                    return None, None
+            else:
+                return None, None
+        return factor, symb
+    else:
+        return None, None
+
 
 _UNITY = Integer(1)
 _HALF = Rational(1,2)
