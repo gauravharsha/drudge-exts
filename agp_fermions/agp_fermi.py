@@ -52,7 +52,7 @@ class AGPFermi(GenQuadDrudge):
 
     def __init__(
         self, ctx, op_label='c',
-        all_orb_range=Range('A', 0, Symbol('norb')),
+        all_orb_range=Range('A', 0, Symbol(r'M_orb')),
         all_orb_dumms=PartHoleDrudge.DEFAULT_ORB_DUMMS,
         spin_range=Range(r'\uparrow \downarrow', Integer(0), Integer(2)),
         spin_dumms=tuple(Symbol('sigma{}'.format(i)) for i in range(50)),
@@ -163,6 +163,7 @@ class AGPFermi(GenQuadDrudge):
         )
         self._spec = spec
         self._swapper = functools.partial(_swap_agpf, spec=spec)
+        # self._extract_su2 = functools.partial(_get_su2_vecs, spec=spec)
         self._extract_su2 = lambda x: _get_su2_vecs(x, spec=spec)
 
     # Do not use `\otimes' in latex expressions for the operators.
@@ -407,15 +408,24 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             else:
                 assert False
         elif char2 == _C_DAG:
-            if indice1[1] == indice2[1]:
-                if key1 > key2:
+            if key1 > key2:
+                return _NEGONE, _NOUGHT
+            elif key1 == key2:
+                if indice2[1] == SpinOneHalf.UP:
                     return _NEGONE, _NOUGHT
                 else:
                     return None
-            elif indice2[1] == SpinOneHalf.UP:
-                return _NEGONE, _NOUGHT
             else:
                 return None
+            # if indice1[1] == indice2[1]:
+            #     if key1 > key2:
+            #         return _NEGONE, _NOUGHT
+            #     else:
+            #         return None
+            # elif indice2[1] == SpinOneHalf.UP:
+            #     return _NEGONE, _NOUGHT
+            # else:
+            #     return None
         elif char2 == _C_:
             if key1 > key2:
                 if indice1[1] == indice2[1]:
@@ -453,7 +463,7 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             else:
                 assert False
         elif char2 == _C_DAG:
-            if key1 > key2:
+            if key1 >= key2:
                 if indice1[1] == indice2[1]:
                     return _NEGONE, delta
                 else:
@@ -461,15 +471,24 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             else:
                 return None
         elif char2 == _C_:
-            if indice1[1] == indice2[1]:
-                if key1 > key2:
+            if key1 > key2:
+                return _NEGONE, _NOUGHT
+            elif key1 == key2:
+                if indice1[1] == SpinOneHalf.UP:
                     return _NEGONE, _NOUGHT
                 else:
                     return None
-            elif indice2[1] == SpinOneHalf.DOWN:
-                return _NEGONE, _NOUGHT
             else:
                 return None
+            # if indice1[1] == indice2[1]:
+            #     if key1 > key2:
+            #         return _NEGONE, _NOUGHT
+            #     else:
+            #         return None
+            # elif indice2[1] == SpinOneHalf.DOWN:
+            #     return _NEGONE, _NOUGHT
+            # else:
+            #     return None
     else:
         # return None
         assert False
@@ -506,7 +525,7 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     an = (spec.c_.base, spec.c_.indices[0])
 
     if len(vecs) <= 1:
-        return term
+        new_vecs = vecs
     else:
         i = 0
         while i < (len(vecs)-1):
@@ -561,12 +580,17 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
                         new_vecs.append(vecs[i])
                         i += 1
                         continue
+                else:
+                    new_vecs.append(vecs[i])
+                    i += 1
+                    continue
             else:
                 new_vecs.append(vecs[i])
                 i += 1
                 continue
         if i == len(vecs) - 1:
             new_vecs.append(vecs[i])
+
     return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
 
 # def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
