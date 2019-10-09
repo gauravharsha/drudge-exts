@@ -225,6 +225,41 @@ class AGPFermi(GenQuadDrudge):
             self, tnsr.subst_all(spin_defs).terms
         )
 
+    def get_seniority_zero(self, tnsr: Tensor):
+        """Get the seniority zero component of the given operator expression.
+        """
+
+        # 0, canonicalize indices
+        expr = self.canon_indices(tnsr)
+
+        # 1, simplify
+        expr = self.simplify( self.simplify(expr) )
+
+        # 2, throw away terms with odd number of fermion terms
+        expr = expr.filter(lambda x: _even_fermi_filter(x, spec=self._spec))
+
+        # 3, extract su2 terms
+        expr = self.extract_su2(expr)
+        expr = self.simplify( self.simplify(expr) )
+
+        # 4, get partitions
+        expr = expr.bind(lambda x: _get_fermi_partitions(x, spec=self._spec))
+
+        # 5, Follow steps 0, 1 and 3
+        expr = self.canon_indices(expr)
+        expr = self.simplify( self.simplify(expr) )
+        expr = self.extract_su2(expr)
+        expr = self.simplify( self.simplify(expr) )
+
+        # 6, Anything remaining with cdag, c --> we drop
+        expr = expr.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
+
+        # 7, simplify
+        expr = self.simplify(expr)
+
+        return expr
+
+
 _AGPFSpec = collections.namedtuple('_AGPFSpec',[
     'c_',
     'c_dag',
@@ -505,9 +540,46 @@ def _nonzero_by_nilp(term: Term):
         for i in range(0, len(vecs)-1)
     )
 
+def _no_fermi_filter(term, spec: _AGPFSpec):
+    """Filter to drop all terms with c_dag or c_ operators
+    """
+
+    vecs = term.vecs
+    cr = spec.c_dag.base
+    an = spec.c_.base
+
+    if len(vecs) == 0:
+        return True
+
+    for v in vecs:
+        if v.base in (cr, an):
+            return False
+        else:
+            return True
+
+def _even_fermi_filter(term, spec: _AGPFSpec):
+    """Filter function to throw away the terms containing odd number of fermion operators
+    """
+    vecs = term.vecs
+
+    cr = spec.c_dag.base
+    an = spec.c_.base
+
+    n_fermi = 0
+
+    for v in vecs:
+        if (v.base == cr) or (v.base == an):
+            n_fermi += 1
+
+    if n_fermi % 2 == 0:
+        return True
+    else:
+        return False
+
 def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     """Given a term with a list of vectors, extract the obvious BCS vectors
     NOTE: This bind function assumes that the term has already been simplified
+    NOTE2: We just ignore the SP and SM terms in extracting su2
     """
     vecs = term.vecs
     amp = term.amp
@@ -552,15 +624,15 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
                         amp /= 2
                         i += 2
                         continue
-                    elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
-                        if vecs[i].indices[2] == SpinOneHalf.UP:
-                            new_vecs.append(SP[vecs[i].indices[1]])
-                            i += 2
-                            continue
-                        else:
-                            new_vecs.append(SM[vecs[i].indices[1]])
-                            i += 2
-                            continue
+                    # elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                    #     if vecs[i].indices[2] == SpinOneHalf.UP:
+                    #         new_vecs.append(SP[vecs[i].indices[1]])
+                    #         i += 2
+                    #         continue
+                    #     else:
+                    #         new_vecs.append(SM[vecs[i].indices[1]])
+                    #         i += 2
+                    #         continue
                     else:
                         new_vecs.append(vecs[i])
                         i += 1
@@ -593,34 +665,90 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
 
     return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
 
-# def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
-#     """Given a term with a list of fermionic vectors, extract the various
-#     partitions of N, Pdag and P kind of terms.
-#     """
-#     vecs = term.vecs
-#     amp = term.amp
-#     new_vecs = []
-#
-#     Pdag = spec.Pdag
-#     P = spec.P
-#     N = spec.N
-#
-#     SP = spec.S_p
-#     SM = spec.S_m
-#     SZ = spec.S_z
-#
-#     cr = (spec.c_dag.base, spec.c_dag.indices[0])
-#     an = (spec.c_.base, spec.c_.indices[0])
-#
-#     for v in vecs:
-#         if v.base == cr.base:
-#             new_vecs.append(v)
-#
-#     if len(vecs)%odd != 0:
-#         # Odd number of creation and annihilation operators
-#         return []
-#
-#     return []
+def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
+    """Given a term with a list of fermionic vectors, extract the various
+    partitions of N, Pdag and P kind of terms.
+
+    Assumes: All possible simplification and Pairing / SU2 extraction has been performed,
+    i.e. all the indices are distinct.
+    """
+
+    vecs = term.vecs
+    amp = term.amp
+    fermi_indcs = []
+
+    cr = spec.c_dag.base
+    an = spec.c_.base
+
+    # First extract all the indices of fermion operators
+    for v in vecs:
+        if v.base in (cr, an):
+            fermi_indcs.append(v.indices[1])
+
+    if len(fermi_indcs) == 0:
+        # if there are no fermion operators, return the term as it is
+        return [Term(sums=term.sums, amp=amp, vecs=vecs)]
+    else:
+        # if there are fermion operators, then get all the possible partitions of indices
+        deltas_partns = list(_generate_partitions(fermi_indcs))
+
+    # get a list of even partitions, i.e. throw away partitions involving odd number of indices
+    evens = [
+        all(
+            len(deltas_partns[i][j])%2 == 0 for j in range(len(deltas_partns[i]))
+        ) for i in range(len(deltas_partns))
+    ]
+
+    # Now iterate through the list of partitions and form the deltas expression
+    # for the amplitude
+    delta_amp = Integer(0)
+
+    for i in range(len(deltas_partns)):
+        # if statement for even partitions
+        if evens[i]:
+            pt = deltas_partns[i]
+        else:
+            continue
+
+        # Form the delta expressions
+        delta_intmd = Integer(1)
+        for i in range(len(pt)):
+            delta_intmd *= _construct_deltas(pt[i])
+            if i>0:
+                delta_intmd *= (
+                    1 - KroneckerDelta(pt[i][0], pt[i-1][0])
+                )
+        delta_amp += delta_intmd
+
+    new_amp = amp * delta_amp
+
+    return [Term(sums=term.sums, amp=new_amp, vecs=vecs)]
+
+def _construct_deltas(indices):
+    """Given a list of indices, form all possible KroneckerDelta pairs
+    """
+    del_pairs = Integer(1)
+    for i in range(len(indices)-1):
+        del_pairs *= KroneckerDelta(indices[i], indices[i+1])
+
+    return del_pairs
+
+def _generate_partitions(indices):
+    """A general function that generates all possible partitions for a given set of indices
+    """
+
+    if len(indices) == 1:
+        yield [indices]
+        return
+
+    first = indices[0]
+    for smaller in _generate_partitions(indices[1:]):
+        # insert `first' in each of sub-partitions subsets
+        for n, subset in enumerate(smaller):
+            yield smaller[:n] + [[ first ] + subset] + smaller[n+1:]
+        # put `first' in its own subset
+        yield [[ first ]] + smaller
+
 
 def _canonicalize_indices(term: Term):
     """Here, we canonicalize the free indices in the tensor expressions - that
@@ -633,7 +761,7 @@ def _canonicalize_indices(term: Term):
     # construct the new term
     new_term = term.subst(substs)
 
-    return [Term(sums=new_term.sums, amp=new_amp, vecs=new_term.vecs)]
+    return [Term(sums=new_term.sums, amp=term.amp, vecs=new_term.vecs)]
 
 def _try_simpl_unresolved_deltas(amp: Expr):
     """Try some simplification on unresolved deltas.
