@@ -257,21 +257,24 @@ class AGPFermi(GenQuadDrudge):
         )
 
         # 5, Follow steps 0, 1 and 3, 3 times
-        for i in range(3):
+        expr2 = self.simplify(expr)
+        for i in range(10):
+            expr = expr2
             expr1 = self.simplify(
                 self.canon_indices(self.canon_indices(self.canon_indices(expr)))
             )
-            expr = self.simplify(
+            expr2 = self.simplify(
                 self.simplify(
                     self.extract_su2(expr1)
                 )
             )
+            if self.simplify(expr - expr2) == 0:
+                break
 
-        # # 6, Anything remaining with cdag, c --> we drop
-        # expr = expr.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
-
-        # # 7, simplify
-        # expr = self.simplify(expr)
+        # 6, Anything remaining with cdag, c --> we drop
+        expr = self.simplify(
+            expr2.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
+        )
 
         return expr
 
