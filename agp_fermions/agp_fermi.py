@@ -231,31 +231,47 @@ class AGPFermi(GenQuadDrudge):
 
         # 0, canonicalize indices
         expr = self.canon_indices(tnsr)
+        expr1 = self.canon_indices(expr)
+        expr = self.canon_indices(expr1)
 
         # 1, simplify
-        expr = self.simplify( self.simplify(expr) )
+        expr1 = self.simplify( self.simplify(expr) )
 
         # 2, throw away terms with odd number of fermion terms
-        expr = expr.filter(lambda x: _even_fermi_filter(x, spec=self._spec))
+        expr = self.simplify(
+            expr1.filter(lambda x: _even_fermi_filter(x, spec=self._spec))
+        )
 
         # 3, extract su2 terms
-        expr = self.extract_su2(expr)
-        expr = self.simplify( self.simplify(expr) )
+        expr1 = self.simplify(
+            self.simplify(
+                self.extract_su2(expr)
+            )
+        )
 
         # 4, get partitions
-        expr = expr.bind(lambda x: _get_fermi_partitions(x, spec=self._spec))
+        expr = self.simplify(
+            self.simplify(
+                expr1.bind(lambda x: _get_fermi_partitions(x, spec=self._spec))
+            )
+        )
 
-        # 5, Follow steps 0, 1 and 3
-        expr = self.canon_indices(expr)
-        expr = self.simplify( self.simplify(expr) )
-        expr = self.extract_su2(expr)
-        expr = self.simplify( self.simplify(expr) )
+        # 5, Follow steps 0, 1 and 3, 3 times
+        for i in range(3):
+            expr1 = self.simplify(
+                self.canon_indices(self.canon_indices(self.canon_indices(expr)))
+            )
+            expr = self.simplify(
+                self.simplify(
+                    self.extract_su2(expr1)
+                )
+            )
 
-        # 6, Anything remaining with cdag, c --> we drop
-        expr = expr.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
+        # # 6, Anything remaining with cdag, c --> we drop
+        # expr = expr.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
 
-        # 7, simplify
-        expr = self.simplify(expr)
+        # # 7, simplify
+        # expr = self.simplify(expr)
 
         return expr
 
@@ -315,7 +331,7 @@ def _parse_vec(vec, spec: _AGPFSpec):
     else:
         raise ValueError('Unexpected vector for AGPFermi algebra', vec)
 
-    keys = tuple(sympy_key(i) for i in indices)
+    keys = tuple(sympy_key(i) for i in indices[0:1])
 
     return char, indices, keys
 
