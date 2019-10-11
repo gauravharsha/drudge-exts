@@ -1,0 +1,51 @@
+"""
+Sample drudge script for using the AGPFermi module
+The following need to be taken care of:
+    1. All fermion operators must have an explicitly specified UP or DOWN
+    spin index
+    2. E_pq is internally defined in terms of fermion operators.
+    3. Once all the fermion-level algebra is done, one can extract the seniority-
+    zero operator expressions that will contribute to the AGP-expectation value
+    by using the function `get_seniority_zero`
+"""
+
+delK = KroneckerDelta
+
+# E_pq: all of these will be expressed in terms of fermion operators
+e_pq = e_[p, q]
+e_qp = e_[q, p]
+
+eta = IndexedBase('\eta')
+
+D_pq = sum( eta[p] * e_pq - eta[q] * e_qp )
+Ddag_pq = sum( eta[p] * e_qp - eta[q] * e_pq )
+
+eps = IndexedBase('\epsilon')
+G = Symbol('G')
+
+# Defining the Hamiltonian
+Ham = simplify(
+    einst( eps[p] * e_[p, p] )
+    - G*sum((p, A), (q, A), (e_pq * e_pq - delK(p, q)*e_[p, p])/2)
+)
+
+# RPA- A matrix
+term1 = simplify(Ham | Ddag_pq)
+term2 = simplify(D_pq | term1)
+
+Amat = get_seniority_zero(term2)
+
+term1 = simplify(Ham | D_pq)
+term2 = simplify(term1 | D_pq)
+
+Bmat = get_seniority_zero(term2)
+
+def write_rep(rep):
+    rep.add('Expression for E_pq', e_pq)
+    rep.add('Hamiltonian', Ham.merge())
+    rep.add('RPA - A matrix', Amat.merge())
+    rep.add('RPA - B matrix', Bmat.merge())
+
+with report('rpa.html', 'AGP - Dpq - RPA') as rep:
+    write_rep(rep)
+
