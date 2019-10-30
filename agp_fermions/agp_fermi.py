@@ -106,6 +106,7 @@ class AGPFermi(GenQuadDrudge):
         N_ = bcs_dr.cartan
         Pdag_ = bcs_dr.raise_
         P_ = bcs_dr.lower
+        self.eval_agp = bcs_dr.eval_agp
 
         # SU2 operators
         su2_dr = SU2LatticeDrudge(ctx,

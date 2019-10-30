@@ -25,20 +25,20 @@ G = Symbol('G')
 
 # Defining the Hamiltonian
 Ham = simplify(
-    einst( eps[p] * e_[p, p] )
-    - G*sum((p, A), (q, A), (e_pq * e_pq - delK(p, q)*e_[p, p])/2)
+    einst( eps[p] * N[p] )
+    - G*sum((p, A), (q, A), Pdag[p] * P[q])
 )
 
 # RPA- A matrix
 term1 = simplify(Ham | Ddag_pq)
-term2 = simplify(D_pq | term1)
+term2a = simplify(D_pq | term1)
 
-Amat = get_seniority_zero(term2)
+Amat = get_seniority_zero(term2a)
 
 term1 = simplify(Ham | D_pq)
-term2 = simplify(term1 | D_pq)
+term2b = simplify(term1 | D_pq)
 
-Bmat = get_seniority_zero(term2)
+Bmat = get_seniority_zero(term2b)
 
 Amat_agp = eval_agp(Amat, rdm_list)
 Bmat_agp = eval_agp(Bmat, rdm_list)
@@ -46,11 +46,11 @@ Bmat_agp = eval_agp(Bmat, rdm_list)
 def write_rep(rep):
     rep.add('Expression for E_pq', e_pq)
     rep.add('Hamiltonian', Ham.merge())
-    rep.add('RPA - A matrix', Amat.merge())
-    rep.add('RPA - B matrix', Bmat.merge())
+    rep.add('RPA - A matrix', term2a.merge())
+    rep.add('RPA - B matrix', term2b.merge())
     rep.add('RPA - A matrix - exp value', Amat_agp.simplify().merge().map2amps(factor))
     rep.add('RPA - B matrix - exp value', Bmat_agp.simplify().merge().map2amps(factor))
 
-with report('rpa.html', 'AGP - Dpq - RPA') as rep:
+with report('rpa_v2.html', 'AGP - Dpq - RPA') as rep:
     write_rep(rep)
 
