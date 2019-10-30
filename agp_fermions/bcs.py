@@ -68,13 +68,6 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
             norm=norm, shift=shift, specials=specials, **kwargs
         )
 
-        # Any value of shift other than '-1' is incompatible with _nonzero_by_cartan
-        if shift != Integer(-1):
-            warnings.warn(
-                "Value of shift has been set to ", shift,
-                " which is incompatible with the filter _nonzero_by_cartan. Proceed with caution (or comment lines 163 to 165)."
-            )
-
         # Set the range and dummies.
         self.part_range = part_range
         self.hole_range = hole_range
@@ -84,6 +77,7 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
         self.raise_ = raise_
         self.cartan = cartan
         self.lower = lower
+        self.shift = shift
 
         #------------------------------------------------------------------------#
         #------GH tweak here to deal with all-orbital-range separately-----------#
@@ -159,10 +153,11 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
         """
 
         noed = super().normal_order(terms, **kwargs)
-        noed = noed.filter(functools.partial(
-            _nonzero_by_cartan,
-            raise_=self.raise_, cartan=self.cartan, lower=self.lower
-        ))
+        if self.shift == Integer(-1):
+            noed = noed.filter(functools.partial(
+                _nonzero_by_cartan,
+                raise_=self.raise_, cartan=self.cartan, lower=self.lower
+            ))
         return noed.filter(_is_not_zero_by_nilp)
         return noed
 
