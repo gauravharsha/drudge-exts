@@ -150,9 +150,9 @@ class AGPFermi(GenQuadDrudge):
             Sm_.label[0]+'_m' : Sm_,
             N_.label[0] : N_,
             N_.label[0]+'_' : N_,
-            Pdag_.label[0]+'_p' : Pdag_,
+            Pdag_.label[0]+'dag' : Pdag_,
             Pdag_.label[0]+'_dag' : Pdag_,
-            P_.label[0]+'_m' : P_,
+            P_.label[0] : P_,
             P_.label[0]+'_' : P_,
         })
 
@@ -194,6 +194,7 @@ class AGPFermi(GenQuadDrudge):
 
         noed = super().normal_order(terms, **kwargs)
         noed = noed.filter(_nonzero_by_nilp)
+        noed = noed.filter(_nonzero_by_cartan)
         return noed
 
     def canon_indices(self, expression: Tensor):
@@ -547,6 +548,37 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     else:
         # return None
         assert False
+
+def _nonzero_by_cartan(term: Term):
+    """If the term is zero because of the cartan in it.
+    NOTE: the nonzero by cartan filter should be used only when the terms are
+    already in a canonical/normal order so that the Pdag N P terms are kept together.
+    """
+
+    raise_ = AGPFermi.PAIRING_RAISE
+    cartan = AGPFermi.PAIRING_CARTAN
+    lower = AGPFermi.PAIRING_LOWER
+
+    raise_indices = set()
+    cartan_indices = set()
+
+    for vec in term.vecs:
+        base = vec.base
+        indices = vec.indices
+
+        if base == raise_:
+            raise_indices.add(indices)
+        elif base == cartan:
+            if indices in raise_indices:
+                return False
+            cartan_indices.add(indices)
+        elif base == lower:
+            if indices in cartan_indices:
+                return False
+
+        continue
+
+    return True
 
 def _nonzero_by_nilp(term: Term):
     """Need a function to filter terms based on nilpotency of fermion operators
