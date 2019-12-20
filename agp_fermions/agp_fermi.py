@@ -164,8 +164,7 @@ class AGPFermi(GenQuadDrudge):
         )
         self._spec = spec
         self._swapper = functools.partial(_swap_agpf, spec=spec)
-        # self._extract_su2 = functools.partial(_get_su2_vecs, spec=spec)
-        self._extract_su2 = lambda x: _get_su2_vecs(x, spec=spec)
+        self._extract_su2 = functools.partial(_get_su2_vecs, spec=spec)
 
     # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
@@ -241,7 +240,9 @@ class AGPFermi(GenQuadDrudge):
 
         # 2, throw away terms with odd number of fermion terms
         expr = self.simplify(
-            expr1.filter(lambda x: _even_fermi_filter(x, spec=self._spec))
+            expr1.filter(
+                functools.partial(_even_fermi_filter, spec=self._spec)
+            )
         )
 
         # 3, extract su2 terms
@@ -254,7 +255,9 @@ class AGPFermi(GenQuadDrudge):
         # 4, get partitions
         expr = self.simplify(
             self.simplify(
-                expr1.bind(lambda x: _get_fermi_partitions(x, spec=self._spec))
+                expr1.bind(
+                    functools.partial(_get_fermi_partitions, spec=self._spec)
+                )
             )
         )
 
@@ -275,7 +278,9 @@ class AGPFermi(GenQuadDrudge):
 
         # 6, Anything remaining with cdag, c --> we drop
         expr = self.simplify(
-            expr2.filter(lambda x: _no_fermi_filter(x, spec=self._spec))
+            expr2.filter(
+                functools.partial(_no_fermi_filter, spec=self._spec)
+            )
         )
 
         return expr
