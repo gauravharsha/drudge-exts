@@ -4,8 +4,8 @@ from dummy_spark import SparkContext
 #from pyspark import SparkContext
 
 from sympy import Symbol, collect, Add, Mul, Integer, symbols, factor, diff, IndexedBase
-from agp_fermi import *
 from drudge import InvariantIndexable, Perm, IDENT, NEG
+from agp_fermi import *
 
 ctx = SparkContext()
 dr = AGPFermi(ctx)
@@ -144,8 +144,8 @@ dr.set_symm(Z44,
 rdm_list = [[Z00, Z02, Z04, Z06, Z08], [Z11, Z13, Z15, Z17], [Z22, Z24, Z26], [Z33, Z35], [Z44]]
 
 dr.set_name(
-    Symbol=Symbol,
     symbols=symbols,
+    Symbol=Symbol,
     rdm_list=rdm_list,
 )
 
