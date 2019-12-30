@@ -1,0 +1,31 @@
+delK = KroneckerDelta
+
+# E_pq: all of these will be expressed in terms of fermion operators
+e_pq = e_[p, q]
+
+# unique_del_substs: the dictionary of Kronecker Delta's that are ZERO
+print(unique_del_substs)
+
+# Now we can set some selected indices to be independent
+# User has to be careful about it
+# Here, for example, we will set r and s to be unique
+unique_indices([r, s])
+
+# Test expression
+expr = sum((delK(r, s) + delK(p, r))*e_pq)
+
+# Once we simplify the expression, the delK(r, s) terms should vanish
+expr2 = simplify(expr)
+
+# Once our job is done, we can clear/purge the list of unique indices
+purge_unique_indices()
+
+# Print report to check if we succeeded
+def write_rep(rep):
+    rep.add(None, e_pq, 'Expression for E_pq')
+    rep.add(None, expr.merge(), 'Test Expression')
+    rep.add(None, expr2.merge(), 'Test Expression')
+
+with report('rep_unique_indices.html', 'Report for unique indices func') as rep:
+    write_rep(rep)
+

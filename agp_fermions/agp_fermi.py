@@ -2,6 +2,7 @@
 Drudge for BCS-AGP-fermionic algebra
 """
 import collections, functools, operator, re, typing
+from itertools import product
 
 from sympy import (
     sympify, Symbol, KroneckerDelta, Eq, solveset, S, Integer, Add, Mul, Number,
@@ -156,6 +157,7 @@ class AGPFermi(GenQuadDrudge):
             P_.label[0]+'_' : P_,
         })
 
+        # Define spec for all the class methods needed for extracting the su2 operators
         spec = _AGPFSpec(
             c_=self.an, c_dag=self.cr, N=self.N, P=self.P, Pdag=self.Pdag,
             agproot=bcs_root, agpnorm=bcs_norm, agpshift=bcs_shift,
@@ -163,19 +165,40 @@ class AGPFermi(GenQuadDrudge):
             su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift,
         )
         self._spec = spec
+
+        # Swapper dummy function for commutation rules
         self._swapper = functools.partial(_swap_agpf, spec=spec)
+
+        # Extracting SU2 dummy function
         self._extract_su2 = functools.partial(_get_su2_vecs, spec=spec)
+
+        # set of unique dummies:
+        #   The idea is to declare a set of (free) dummy indices to be unique, i.e. they have
+        #   unique, different values by construction. This is a feature of this module / class
+        #   but has potential to be a part of the drudge system.
+        # The way I want to implement this is as follows:
+        #   1. User specifies a tuple/list of indices to be set unique
+        #   2. Then we construct a dictionary of all proosible kronecker deltas which will be zero
+        #   3. in simplify / get_seniority_zero, we use this substitution.
+
+        # Dictionary of substitutions
+        self.unique_del_substs = {}
+
+        # Bind function for the substitutions
+        self._unique_indices_bind = functools.partial(
+            _implement_unique_indices, substs=self.unique_del_substs
+        )
 
     # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
-
+        
     @property
     def swapper(self) -> GenQuadDrudge.Swapper:
         """The swapper for the AGPF algebra -- invoked only when at least one
         of the two vectors is SU2 or BCS generator
         """
         return self._swapper
-
+    
     def _latex_vec(self, vec):
         """Get the LaTeX form of operators. This needs over-writing because the
         fermionic expressions encode creation and annihilation as an index,
@@ -194,7 +217,35 @@ class AGPFermi(GenQuadDrudge):
         noed = super().normal_order(terms, **kwargs)
         noed = noed.filter(_nonzero_by_nilp)
         noed = noed.filter(_nonzero_by_cartan)
+        noed = noed.flatMap(
+            functools.partial(
+                _implement_unique_indices, substs=self.unique_del_substs
+            )
+        )
+
         return noed
+    
+    def unique_indices(self, indlist):
+        """
+        Function that takes a list / tuple of indices, which would be unique among
+        themselves, and then update the dictionary of substitutions
+        """
+        # Extract the unique set of indices
+        unq_ind = tuple(set(indlist))
+        # Update the dictionary
+        for ind_pair in product(unq_ind, unq_ind):
+            if ind_pair[0] == ind_pair[1]:
+                continue
+            dict_attr = KroneckerDelta(ind_pair[0], ind_pair[1])
+            self.unique_del_substs[dict_attr] = Integer(0)
+        return
+
+    def purge_unique_indices(self):
+        """
+        Reset the unique_del_substs dictionary to empty
+        """
+        self.unique_del_substs.clear()
+
 
     def canon_indices(self, expression: Tensor):
         """Bind function to canonicalize free / external indices.
@@ -929,6 +980,12 @@ def _parse_factor_symb(expr: Expr):
     else:
         return None, None
 
+def _implement_unique_indices(term: Term, substs: dict):
+    """
+    Very simple function: takes the term and outputs a new one with the substitutions
+    """
+    new_term = term.subst(substs)
+    return [Term(sums=new_term.sums, amp=new_term.amp, vecs=new_term.vecs)]
 
 _UNITY = Integer(1)
 _HALF = Rational(1,2)
