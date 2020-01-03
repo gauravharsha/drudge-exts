@@ -17,7 +17,8 @@ eta = IndexedBase('eta')
 
 # We do this one set of unique indices at a time
 unique_indices([i, j])
-unique_indices([p, q, r])
+unique_indices([p, r])
+unique_indices([q, r])
 
 # Define D/ Ddag
 Ddag_pr = simplify(sum(eta[p]*e_rp - eta[r]*e_pr))

@@ -953,7 +953,7 @@ def _canonicalize_indices(term: Term, spec: _AGPFSpec):
     # construct the new term
     new_term = term.subst(new_substs)
 
-    return [Term(sums=new_term.sums, amp=term.amp, vecs=new_term.vecs)]
+    return [Term(sums=new_term.sums, amp=new_amp, vecs=new_term.vecs)]
 
 def _try_simpl_unresolved_deltas(amp: Expr):
     """Try some simplification on unresolved deltas.
@@ -1028,7 +1028,13 @@ def _try_simpl_unresolved_deltas(amp: Expr):
                     else:
                         arg1 = symb1
                         arg2 = factor2 * symb2 / factor1
-                    substs[arg1] = arg2
+
+                    # Now update the substs dictionary
+                    if arg1 not in list(substs.keys()):
+                        substs[arg1] = arg2
+                    else:
+                        # if the arg1 exists in the key, multiply with the new delta
+                        deltas *= KroneckerDelta(arg2, substs[arg1])
                 deltas *= KroneckerDelta(arg1, arg2)
             else:
                 others *= i
