@@ -1,0 +1,48 @@
+delK = KroneckerDelta
+
+# E_pq: all of these will be expressed in terms of fermion operators
+e_pr = e_[p, r]
+e_rp = e_[r, p]
+e_ij = e_[i, j]
+e_ji = e_[j, i]
+e_qr = e_[q, r]
+e_rq = e_[r, q]
+
+# Eta
+eta = IndexedBase('eta')
+
+# Now we can set some selected indices to be independent
+# User has to be careful about it
+# Here, for example, we will set r and s to be unique
+
+# We do this one set of unique indices at a time
+unique_indices([i, j])
+unique_indices([p, q, r])
+
+# Define D/ Ddag
+Ddag_pr = simplify(sum(eta[p]*e_rp - eta[r]*e_pr))
+Ddag_qr = simplify(sum(eta[q]*e_rq - eta[r]*e_qr))
+D_ij = simplify(sum(eta[i]*e_ij - eta[j]*e_ji))
+
+# unique_del_lists: the dictionary of Kronecker Delta's that are ZERO
+print('Sets of unique indices are: ', unique_del_lists)
+
+# Test expression
+expr1 = simplify(simplify(Ddag_pr * Ddag_qr))
+expr2 = simplify(simplify(D_ij | expr1))
+
+# Extract serniority zero
+metric = simplify( simplify(get_seniority_zero(expr2)) )
+
+# Once our job is done, we can clear/purge the list of unique indices
+purge_unique_indices()
+
+# Print report to check if we succeeded
+def write_rep(rep):
+    rep.add(None, e_pq, 'Expression for E_pq')
+    rep.add(None, expr2.merge(), '[D_ij, DD_pr DD_qr] Fermionic')
+    rep.add(None, metric.merge(), '[D_ij, DD_pr DD_qr] SU2')
+
+with report('rep_unique_indices.html', 'Report for unique indices func') as rep:
+    write_rep(rep)
+

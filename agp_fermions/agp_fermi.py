@@ -7,7 +7,7 @@ from itertools import product
 from sympy import (
     sympify, Symbol, KroneckerDelta, Eq, solveset, S, Integer, Add, Mul, Number,
     Indexed, IndexedBase, Expr, Basic, Pow, Wild, conjugate, Sum, Piecewise,
-    Intersection, expand_power_base, expand_power_exp, Rational
+    Intersection, expand_power_base, expand_power_exp, Rational, ordered
 )
 
 from sympy.utilities.iterables import default_sort_key
@@ -51,10 +51,14 @@ class AGPFermi(GenQuadDrudge):
     SPIN_RAISE = Vec(r'J^+')
     SPIN_LOWER = Vec(r'J^-')
 
+    DEFAULT_ORB_DUMMS = tuple(Symbol(i) for i in 'pqrsijklabcd') + tuple(
+        Symbol('p{}'.format(i)) for i in range(50)
+    )
+
     def __init__(
         self, ctx, op_label='c',
         all_orb_range=Range('A', 0, Symbol(r'M_orb')),
-        all_orb_dumms=PartHoleDrudge.DEFAULT_ORB_DUMMS,
+        all_orb_dumms=DEFAULT_ORB_DUMMS,
         spin_range=Range(r'\uparrow \downarrow', Integer(0), Integer(2)),
         spin_dumms=tuple(Symbol('sigma{}'.format(i)) for i in range(50)),
         bcs_N=PAIRING_CARTAN, bcs_Pdag=PAIRING_RAISE, bcs_P=PAIRING_LOWER,
@@ -138,6 +142,19 @@ class AGPFermi(GenQuadDrudge):
         )
         self.set_name(e_=self.e_)
 
+        # set of unique dummies:
+        #   The idea is to declare a set of (free) dummy indices to be unique, i.e. they have
+        #   unique, different values by construction. This is a feature of this module / class
+        #   but has potential to be a part of the drudge system.
+        # The way I want to implement this is as follows:
+        #   1. User specifies a tuple/list of indices to be set unique
+        #   2. Then we construct a dictionary of all proosible kronecker deltas which will be zero
+        #   3. in simplify / get_seniority_zero, we use this substitution.
+
+        # Dictionary of substitutions
+        self.unique_del_lists = []
+
+        # XXX: To be doen / can be done
         # Define the Dpq, Ddag_pq operators
 
         # Set the names
@@ -162,7 +179,7 @@ class AGPFermi(GenQuadDrudge):
             c_=self.an, c_dag=self.cr, N=self.N, P=self.P, Pdag=self.Pdag,
             agproot=bcs_root, agpnorm=bcs_norm, agpshift=bcs_shift,
             S_p=self.S_p, S_z=self.S_z, S_m=self.S_m,
-            su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift,
+            su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift, unique_ind=self.unique_del_lists
         )
         self._spec = spec
 
@@ -171,23 +188,6 @@ class AGPFermi(GenQuadDrudge):
 
         # Extracting SU2 dummy function
         self._extract_su2 = functools.partial(_get_su2_vecs, spec=spec)
-
-        # set of unique dummies:
-        #   The idea is to declare a set of (free) dummy indices to be unique, i.e. they have
-        #   unique, different values by construction. This is a feature of this module / class
-        #   but has potential to be a part of the drudge system.
-        # The way I want to implement this is as follows:
-        #   1. User specifies a tuple/list of indices to be set unique
-        #   2. Then we construct a dictionary of all proosible kronecker deltas which will be zero
-        #   3. in simplify / get_seniority_zero, we use this substitution.
-
-        # Dictionary of substitutions
-        self.unique_del_substs = {}
-
-        # Bind function for the substitutions
-        self._unique_indices_bind = functools.partial(
-            _implement_unique_indices, substs=self.unique_del_substs
-        )
 
     # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
@@ -219,7 +219,7 @@ class AGPFermi(GenQuadDrudge):
         noed = noed.filter(_nonzero_by_cartan)
         noed = noed.flatMap(
             functools.partial(
-                _implement_unique_indices, substs=self.unique_del_substs
+                _canonicalize_indices, spec=self._spec
             )
         )
 
@@ -230,27 +230,30 @@ class AGPFermi(GenQuadDrudge):
         Function that takes a list / tuple of indices, which would be unique among
         themselves, and then update the dictionary of substitutions
         """
+
         # Extract the unique set of indices
-        unq_ind = tuple(set(indlist))
-        # Update the dictionary
-        for ind_pair in product(unq_ind, unq_ind):
-            if ind_pair[0] == ind_pair[1]:
-                continue
-            dict_attr = KroneckerDelta(ind_pair[0], ind_pair[1])
-            self.unique_del_substs[dict_attr] = Integer(0)
+        unq_ind = set(indlist)
+
+        # Update the list
+        self.unique_del_lists.append(unq_ind)
+
         return
 
     def purge_unique_indices(self):
         """
         Reset the unique_del_substs dictionary to empty
         """
-        self.unique_del_substs.clear()
+        self.unique_del_lists.clear()
 
 
     def canon_indices(self, expression: Tensor):
         """Bind function to canonicalize free / external indices.
         """
-        return expression.bind(_canonicalize_indices)
+        return expression.bind(
+            functools.partial(
+                _canonicalize_indices, spec=self._spec
+            )
+        )
 
     def extract_su2(self, expression: Tensor):
         """Bind function to map fermion strings to obvious SU2 (Pairing as well
@@ -281,13 +284,8 @@ class AGPFermi(GenQuadDrudge):
         """Get the seniority zero component of the given operator expression.
         """
 
-        # 0, canonicalize indices
-        expr = self.canon_indices(tnsr)
-        expr1 = self.canon_indices(expr)
-        expr = self.canon_indices(expr1)
-
-        # 1, simplify
-        expr1 = self.simplify( self.simplify(expr) )
+        # 1, simplify -- includes canonicalization
+        expr1 = self.simplify( self.simplify(tnsr) )
 
         # 2, throw away terms with odd number of fermion terms
         expr = self.simplify(
@@ -312,17 +310,13 @@ class AGPFermi(GenQuadDrudge):
             )
         )
 
-        # 5, Follow steps 0, 1 and 3, 3 times
+        # 5, Follow steps 0, 1 and 3, a few times
         expr2 = self.simplify(expr)
+
         for i in range(10):
-            expr = expr2
-            expr1 = self.simplify(
-                self.canon_indices(self.canon_indices(self.canon_indices(expr)))
-            )
+            expr1 = expr2*Integer(1)
             expr2 = self.simplify(
-                self.simplify(
-                    self.extract_su2(expr1)
-                )
+                self.extract_su2(expr1)
             )
             if self.simplify(expr - expr2) == 0:
                 break
@@ -352,6 +346,7 @@ _AGPFSpec = collections.namedtuple('_AGPFSpec',[
     'su2root',
     'su2norm',
     'su2shift',
+    'unique_ind',
 ])
 
 _P_DAG = 0
@@ -857,8 +852,68 @@ def _generate_partitions(indices):
         # put `first' in its own subset
         yield [[ first ]] + smaller
 
+def _delta_map(input_substs):
+    """Function takes in a dictionary of substitutions and creates a set of connected
+    lists of indices of the KroneckerDeltas
+    """
 
-def _canonicalize_indices(term: Term):
+    substs = input_substs.copy()
+
+    # First get the keys of the dictionary
+    dict_keys = list(substs.keys())
+
+    # Start with the first key - see where it points to and see if the substituting index
+    # is itself in the keys
+
+    delta_lists = []
+    new_list = []
+
+    # Starting Key
+    key = dict_keys[-1]
+    new_list = [key, ]
+
+    while dict_keys:
+
+        # First form a small list with the first two indices
+        val = substs[key]
+        new_list.append(val)
+
+        # remove these entries from the dict
+        dict_keys.remove(key)
+        del substs[key]
+
+        if val in dict_keys:
+
+            # Update the elements 
+            key = val
+            continue
+
+        else:
+
+            # Can't extend anymore
+            new_set = set(new_list)
+            lst_added = False
+
+            if not delta_lists:
+                delta_lists.append(new_set)
+            else:
+                lst_ind = 0
+                for lst in delta_lists:
+                    ovlp = list(set(lst) & set(new_set))
+                    if ovlp:
+                        delta_lists[lst_ind] = delta_lists[lst_ind].union(new_set)
+                        lst_added = True
+                        break
+                if lst_added == False:
+                    delta_lists.append(new_set)
+
+            if dict_keys:
+                key = dict_keys[-1]
+                new_list = [key, ]
+
+    return delta_lists
+
+def _canonicalize_indices(term: Term, spec: _AGPFSpec):
     """Here, we canonicalize the free indices in the tensor expressions - that
     is replace the higher key indices with lower key ones everywhere
     """
@@ -866,8 +921,37 @@ def _canonicalize_indices(term: Term):
     # get the new term and substs
     new_amp, substs = _try_simpl_unresolved_deltas(term.amp)
 
+    # check for overlap in the dlists and unique_indices
+    # if any of the maps contain two indices that are supposed to be unique,
+    # it should return zero/empty term.
+    unique_list = spec.unique_ind
+
+    # To make canonicalization a one step process, we can define new substitutions
+    # list based on the delta map
+    new_substs = {}
+
+    # Get the delta map from the substs
+    if substs:
+        dlists = _delta_map(substs)
+
+        for s1 in dlists:
+            s1_sorted = list(ordered(s1))
+            j = 1
+            while j < len(s1_sorted):
+                new_substs[s1_sorted[j]] = s1_sorted[0]
+                j += 1
+
+            if not unique_list:
+                continue
+
+            for s2 in unique_list:
+                if len(list(s1 & s2))>1:
+                    return []
+                else:
+                    continue
+
     # construct the new term
-    new_term = term.subst(substs)
+    new_term = term.subst(new_substs)
 
     return [Term(sums=new_term.sums, amp=term.amp, vecs=new_term.vecs)]
 
@@ -886,6 +970,7 @@ def _try_simpl_unresolved_deltas(amp: Expr):
 
     deltas = _UNITY
     others = _UNITY
+
     if isinstance(amp, KroneckerDelta):
         arg1, arg2 = amp.args
 
@@ -913,7 +998,9 @@ def _try_simpl_unresolved_deltas(amp: Expr):
                 arg1 = symb1
                 arg2 = factor2 * symb2 / factor1
             substs[arg1] = arg2
+
         deltas *= KroneckerDelta(arg1, arg2)
+
     else:
         for i in amp.args:
             if isinstance(i, KroneckerDelta):
@@ -931,19 +1018,17 @@ def _try_simpl_unresolved_deltas(amp: Expr):
                         assert symb2 is not None
                         arg1 = symb2
                         arg2 = factor1 / factor2
-                        arg2new = arg2
                     elif symb2 is None:
                         assert symb1 is not None
                         arg1 = symb1
                         arg2 = factor2 / factor1
-                        arg2new = arg2
                     elif sympy_key(symb1) < sympy_key(symb2):
                         arg1 = symb2
-                        arg2new = factor1 * symb1 / factor2
+                        arg2 = factor1 * symb1 / factor2
                     else:
                         arg1 = symb1
-                        arg2new = factor2 * symb2 / factor1
-                    substs[arg1] = arg2new
+                        arg2 = factor2 * symb2 / factor1
+                    substs[arg1] = arg2
                 deltas *= KroneckerDelta(arg1, arg2)
             else:
                 others *= i
@@ -979,13 +1064,6 @@ def _parse_factor_symb(expr: Expr):
         return factor, symb
     else:
         return None, None
-
-def _implement_unique_indices(term: Term, substs: dict):
-    """
-    Very simple function: takes the term and outputs a new one with the substitutions
-    """
-    new_term = term.subst(substs)
-    return [Term(sums=new_term.sums, amp=new_term.amp, vecs=new_term.vecs)]
 
 _UNITY = Integer(1)
 _HALF = Rational(1,2)
