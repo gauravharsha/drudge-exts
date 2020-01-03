@@ -4,7 +4,7 @@ from dummy_spark import SparkContext
 #from pyspark import SparkContext
 
 from sympy import Symbol, collect, Add, Mul, Integer, symbols, factor, diff, IndexedBase
-from drudge import InvariantIndexable, Perm, IDENT, NEG
+from drudge import Perm, IDENT, NEG
 from agp_fermi import *
 
 ctx = SparkContext()

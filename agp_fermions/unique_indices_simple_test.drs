@@ -4,12 +4,15 @@ delK = KroneckerDelta
 e_pq = e_[p, q]
 
 # unique_del_substs: the dictionary of Kronecker Delta's that are ZERO
-print(unique_del_substs)
+print(unique_del_lists)
 
 # Now we can set some selected indices to be independent
 # User has to be careful about it
 # Here, for example, we will set r and s to be unique
 unique_indices([r, s])
+
+# unique_del_substs: the dictionary of Kronecker Delta's that are ZERO
+print(unique_del_lists)
 
 # Test expression
 expr = sum((delK(r, s) + delK(p, r))*e_pq)
