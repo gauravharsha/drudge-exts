@@ -904,6 +904,7 @@ def _delta_map(input_substs):
                         delta_lists[lst_ind] = delta_lists[lst_ind].union(new_set)
                         lst_added = True
                         break
+                    lst_ind += 1
                 if lst_added == False:
                     delta_lists.append(new_set)
 
