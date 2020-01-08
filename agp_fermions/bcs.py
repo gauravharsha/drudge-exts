@@ -227,7 +227,7 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
             n_indlist = []
 
             if len(vecs)==0:
-                return [Term(sums=term.sums,amp=t_amp*zlist[0,0],vecs=vecs)]
+                return [Term(sums=term.sums,amp=t_amp*zlist[0][0],vecs=vecs)]
 
             for i in vecs:
                 if i.base == pdag_:
