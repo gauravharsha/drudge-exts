@@ -229,18 +229,29 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
             if len(vecs)==0:
                 return [Term(sums=term.sums,amp=t_amp*zlist[0][0],vecs=vecs)]
 
+            # Classify the indices into pdag, n, and p indicies
             for i in vecs:
                 if i.base == pdag_:
-                    pdag_cnt += 1
                     pdag_indlist.extend(list(i.indices))
                 elif i.base == p_:
-                    p_cnt += 1
                     p_indlist.extend(list(i.indices))
                 elif i.base == num_:
-                    n_cnt += 1
                     n_indlist.extend(list(i.indices))
                 else:
                     return []
+
+            # Count the number of indices
+            pdag_cnt = len(pdag_indlist)
+            p_cnt = len(p_indlist)
+
+            # First, we extract only the unique N indices
+            unique_n_indlist = list(set(n_indlist))
+            n_cnt = len(unique_n_indlist)
+
+            # Introduce appropriate power of 2 in amplitude to include the effect
+            #   of unique indices only  being considered in N
+            ldiff = len(n_indlist) - len(unique_n_indlist)
+            t_amp *= 2**(ldiff)
 
             if pdag_cnt != p_cnt:
                 # The expression must have equal number of Pdag's and P_'s
@@ -252,7 +263,7 @@ class ReducedBCSDrudge(SU2LatticeDrudge):
             else:
                 # Combining all the indices
                 indcs = pdag_indlist
-                indcs.extend(n_indlist)
+                indcs.extend(unique_n_indlist)
                 indcs.extend(p_indlist)
 
                 # Counting the different number of indices in order
