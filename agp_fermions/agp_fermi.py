@@ -47,6 +47,9 @@ class AGPFermi(GenQuadDrudge):
     PAIRING_RAISE = Vec(r'P^\dagger')
     PAIRING_LOWER = Vec(r'P')
 
+    NUMBER_UP = Vec(r'n^{\uparrow}')
+    NUMBER_DN = Vec(r'n^{\downarrow}')
+
     SPIN_CARTAN = Vec(r'J^z')
     SPIN_RAISE = Vec(r'J^+')
     SPIN_LOWER = Vec(r'J^-')
@@ -62,6 +65,7 @@ class AGPFermi(GenQuadDrudge):
         spin_range=Range(r'\uparrow \downarrow', Integer(0), Integer(2)),
         spin_dumms=tuple(Symbol('sigma{}'.format(i)) for i in range(50)),
         bcs_N=PAIRING_CARTAN, bcs_Pdag=PAIRING_RAISE, bcs_P=PAIRING_LOWER,
+        bcs_Nup=NUMBER_UP, bcs_Ndn=NUMBER_DN,
         su2_Jz=SPIN_CARTAN, su2_Jp=SPIN_RAISE, su2_Jm=SPIN_LOWER,
         bcs_root=Integer(2), bcs_norm=Integer(1), bcs_shift=Integer(-1),
         su2_root=Integer(1), su2_norm=Integer(2), su2_shift=Integer(0),
@@ -127,6 +131,8 @@ class AGPFermi(GenQuadDrudge):
         self.all_orb_dumms = all_orb_dumms
         self.Pdag = Pdag_
         self.N = N_
+        self.N_up = bcs_Nup
+        self.N_dn = bcs_Ndn
         self.P = P_
         self.S_z = Sz_
         self.S_p = Sp_
@@ -176,9 +182,9 @@ class AGPFermi(GenQuadDrudge):
 
         # Define spec for all the class methods needed for extracting the su2 operators
         spec = _AGPFSpec(
-            c_=self.an, c_dag=self.cr, N=self.N, P=self.P, Pdag=self.Pdag,
-            agproot=bcs_root, agpnorm=bcs_norm, agpshift=bcs_shift,
-            S_p=self.S_p, S_z=self.S_z, S_m=self.S_m,
+            c_=self.an, c_dag=self.cr, N=self.N, Nup=self.N_up, Ndn=self.N_dn, 
+            P=self.P, Pdag=self.Pdag, agproot=bcs_root, agpnorm=bcs_norm, 
+            agpshift=bcs_shift, S_p=self.S_p, S_z=self.S_z, S_m=self.S_m,
             su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift, unique_ind=self.unique_del_lists
         )
         self._spec = spec
@@ -328,6 +334,15 @@ class AGPFermi(GenQuadDrudge):
             )
         )
 
+        # 7. Substitute N_up and N_dn with N/2
+        p = self.all_orb_dumms[0]
+        expr2 = self.simplify(
+            expr.subst(self.N_up[p], self.N[p]/Integer(2))
+        )
+        expr = self.simplify(
+            expr2.subst(self.N_dn[p], self.N[p]/Integer(2))
+        )
+
         return expr
 
 
@@ -335,6 +350,8 @@ _AGPFSpec = collections.namedtuple('_AGPFSpec',[
     'c_',
     'c_dag',
     'N',
+    'Nup',
+    'Ndn',
     'Pdag',
     'P',
     'agproot',
@@ -350,13 +367,15 @@ _AGPFSpec = collections.namedtuple('_AGPFSpec',[
 ])
 
 _P_DAG = 0
-_N_ = 1
-_P_ = 2
-_S_P = 3
-_S_Z = 4
-_S_M = 5
-_C_ = 6
-_C_DAG = 7
+_N_UP_ = 1
+_N_DN_ = 2
+_N_ = 3
+_P_ = 4
+_S_P = 5
+_S_Z = 6
+_S_M = 7
+_C_ = 8
+_C_DAG = 9
 
 def _parse_vec(vec, spec: _AGPFSpec):
     """Get the character, lattice indices, and indices keys of the vector.
@@ -372,6 +391,10 @@ def _parse_vec(vec, spec: _AGPFSpec):
             indices = vec.indices[1:]
         else:
             pass
+    elif base == spec.Nup:
+        char = _N_UP_
+    elif base == spec.Ndn:
+        char = _N_DN_
     elif base == spec.N:
         char = _N_
     elif base == spec.Pdag:
@@ -421,9 +444,35 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
                 return None
         else:
             return None
+    elif char1 == _N_UP_:
+        if char2 == _P_DAG:
+            return _UNITY, agp_root * delta * spec.Pdag[indice1] / Integer(2)
+        elif char2 == _N_UP_:
+            if key1 > key2:
+                return _UNITY, _NOUGHT
+            else:
+                return None
+        else:
+            return None
+    elif char1 == _N_DN_:
+        if char2 == _P_DAG:
+            return _UNITY, agp_root * delta * spec.Pdag[indice1] / Integer(2)
+        elif char2 == _N_UP_:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_DN_:
+            if key1 > key2:
+                return _UNITY, _NOUGHT
+            else:
+                return None
+        else:
+            return None
     elif char1 == _N_:
         if char2 == _P_DAG:
             return _UNITY, agp_root * delta * spec.Pdag[indice1]
+        elif char2 == _N_UP_:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_DN_:
+            return _UNITY, _NOUGHT
         elif char2 == _N_:
             if key1 > key2:
                 return _UNITY, _NOUGHT
@@ -434,6 +483,10 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     elif char1 == _P_:
         if char2 == _P_DAG:
             return _UNITY, - agp_norm * delta * (spec.N[indice1] + agp_shift)
+        elif char2 == _N_UP_:
+            return _UNITY, agp_root * delta * spec.P[indice1] / Integer(2)
+        elif char2 == _N_DN_:
+            return _UNITY, agp_root * delta * spec.P[indice1] / Integer(2)
         elif char2 == _N_:
             return _UNITY, agp_root * delta * spec.P[indice1]
         elif char2 == _P_:
@@ -445,6 +498,10 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             return None
     elif char1 == _S_P:
         if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_UP_:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_DN_:
             return _UNITY, _NOUGHT
         elif char2 == _N_:
             return _UNITY, _NOUGHT
@@ -459,6 +516,10 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             return None
     elif char1 == _S_Z:
         if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_UP_:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_DN_:
             return _UNITY, _NOUGHT
         elif char2 == _N_:
             return _UNITY, _NOUGHT
@@ -475,6 +536,10 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             return None
     elif char1 == _S_M:
         if char2 == _P_DAG:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_UP_:
+            return _UNITY, _NOUGHT
+        elif char2 == _N_DN_:
             return _UNITY, _NOUGHT
         elif char2 == _N_:
             return _UNITY, _NOUGHT
@@ -494,6 +559,20 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     elif char1 == _C_DAG:
         if char2 == _P_DAG:
             return _UNITY, _NOUGHT
+        elif char2 == _N_UP_:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NOUGHT
+            else:
+                assert False
+        elif char2 == _N_DN_:
+            if indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1]
+            elif indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NOUGHT
+            else:
+                assert False
         elif char2 == _N_:
             return _UNITY, _NEGONE * delta * spec.c_dag[indice1]
         elif char2 == _P_:
@@ -511,7 +590,7 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             if indice1[1] == SpinOneHalf.UP:
                 return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
             elif indice1[1] == SpinOneHalf.DOWN:
-                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpineOneHalf.UP]
+                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
             else:
                 assert False
         elif char2 == _C_DAG:
@@ -547,6 +626,20 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
                 return _UNITY, delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
             elif indice1[1] == SpinOneHalf.DOWN:
                 return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
+            else:
+                assert False
+        elif char2 == _N_UP_:
+            if indice1[1] == SpinOneHalf.UP:
+                return _UNITY, delta * spec.c_[indice1]
+            elif indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, _NOUGHT
+            else:
+                assert False
+        elif char2 == _N_DN_:
+            if indice1[1] == SpinOneHalf.DOWN:
+                return _UNITY, delta * spec.c_[indice1]
+            elif indice1[1] == SpinOneHalf.UP:
+                return _UNITY, _NOUGHT
             else:
                 assert False
         elif char2 == _N_:
@@ -686,11 +779,15 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     """
     vecs = term.vecs
     amp = term.amp
+    int_vecs = []
     new_vecs = []
 
     Pdag = spec.Pdag
     P = spec.P
     N = spec.N
+
+    N_up = spec.Nup
+    N_dn = spec.Ndn
 
     SP = spec.S_p
     SM = spec.S_m
@@ -702,6 +799,8 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     if len(vecs) <= 1:
         new_vecs = vecs
     else:
+
+        # First, let us extract all the number and pair-annihilation operators 
         i = 0
         while i < (len(vecs)-1):
 
@@ -709,62 +808,94 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
             v2 = (vecs[i+1].base, vecs[i+1].indices[0])
 
             if (v1 == cr):
-                if (v2 == cr):
-                    if (vecs[i].indices[1] == vecs[i+1].indices[1]):
-                        # if both creation, and have same lattice index,
-                        #   then assuming term is simplified, the spins must be
-                        #   opposite.
-                        new_vecs.append(Pdag[vecs[i].indices[1]])
-                        i += 2
-                        continue
-                    else:
-                        new_vecs.append(vecs[i])
-                        i += 1
-                        continue
-                elif (v2==an):
+                if (v2==an):
                     if (vecs[i].indices[1:] == vecs[i+1].indices[1:]):
-                        new_vecs.append(N[vecs[i].indices[1]])
-                        amp /= 2
+                        if vecs[i].indices[2] == SpinOneHalf.UP:
+                            int_vecs.append(N_up[vecs[i].indices[1]])
+                        elif vecs[i].indices[2] == SpinOneHalf.DOWN:
+                            int_vecs.append(N_dn[vecs[i].indices[1]])
                         i += 2
                         continue
                     # elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
                     #     if vecs[i].indices[2] == SpinOneHalf.UP:
-                    #         new_vecs.append(SP[vecs[i].indices[1]])
+                    #         int_vecs.append(SP[vecs[i].indices[1]])
                     #         i += 2
                     #         continue
                     #     else:
-                    #         new_vecs.append(SM[vecs[i].indices[1]])
+                    #         int_vecs.append(SM[vecs[i].indices[1]])
                     #         i += 2
                     #         continue
                     else:
-                        new_vecs.append(vecs[i])
+                        int_vecs.append(vecs[i])
                         i += 1
                         continue
+                elif (v2==cr):
+                    # Do not consider the pair-creation operators yet
+                    int_vecs.append(vecs[i])
+                    i += 1
+                    continue
                 else:
                     raise ValueError('Input term is not simplified')
+
             elif (v1 == an):
                 if (v2 == an):
                     if (vecs[i].indices[1] == vecs[i+1].indices[1]):
                         # if both annihilation, and have same lattice index,
                         #   then assuming the term is simplified, the spins
                         #    must be opposite (first one would be DOWN)
-                        new_vecs.append(P[vecs[i].indices[1]])
+                        int_vecs.append(P[vecs[i].indices[1]])
                         i += 2
                         continue
                     else:
-                        new_vecs.append(vecs[i])
+                        int_vecs.append(vecs[i])
                         i += 1
                         continue
                 else:
-                    new_vecs.append(vecs[i])
+                    int_vecs.append(vecs[i])
                     i += 1
                     continue
             else:
-                new_vecs.append(vecs[i])
+                int_vecs.append(vecs[i])
                 i += 1
                 continue
+
+        # If the last two operators did not map, we are left with the last fermion operator
         if i == len(vecs) - 1:
-            new_vecs.append(vecs[i])
+            int_vecs.append(vecs[i])
+
+        # Now map all the pair-creation operators
+        i = 0
+        while i < (len(int_vecs)-1):
+
+            v1 = (int_vecs[i].base, int_vecs[i].indices[0])
+            v2 = (int_vecs[i+1].base, int_vecs[i+1].indices[0])
+
+            if (v1 == cr):
+                if (v2 == cr):
+                    if (int_vecs[i].indices[1] == int_vecs[i+1].indices[1]):
+                        # if both creation, and have same lattice index,
+                        #   then assuming term is simplified, the spins must be
+                        #   opposite.
+                        new_vecs.append(Pdag[int_vecs[i].indices[1]])
+                        i += 2
+                        continue
+                    else:
+                        new_vecs.append(int_vecs[i])
+                        i += 1
+                        continue
+                else:
+                    new_vecs.append(int_vecs[i])
+                    i += 1
+                    continue
+                    # raise ValueError('Input term is not simplified')
+            else:
+                new_vecs.append(int_vecs[i])
+                i += 1
+                continue
+
+        # If the last two operators did not map, we are left with the last fermion operator
+        if i == len(int_vecs) - 1:
+            new_vecs.append(int_vecs[i])
 
     return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
 

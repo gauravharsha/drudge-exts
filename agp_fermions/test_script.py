@@ -1,6 +1,6 @@
 from dummy_spark import SparkContext
 from drudge import *
-from works import *
+from agp_fermi import *
 
 # Define few shortcuts
 DN = DOWN
@@ -252,6 +252,42 @@ def test_nonzero_by_cartan():
     assert expr1 == 0
     assert expr2 == 0
 
+def test_unique_indices_functionality():
+
+    # Test for unique indices functionality
+
+    # Initialise drudge
+    ctx = SparkContext()
+    dr = AGPFermi(ctx)
+
+    # namespace
+    names = dr.names
+
+    # Indices
+    p, q, r, s = names.A_dumms[:4]
+
+    # list of unique indices shoule be empty
+    assert dr.unique_del_lists == []
+
+    # declare r and s to be unique indices
+    dr.unique_indices([r, s])
+
+    # check unique indices list now
+    # Basically, unique ind list is a list of tuples
+    assert dr.unique_del_lists[0] == {r, s}
+
+    # Expression evaluation
+    e_pq = names.e_[p, q]
+    expr = dr.simplify(
+        (delK(r, s) + delK(p, r)) * e_pq
+    )
+    expr2 = dr.simplify(
+        delK(p, r) * e_pq
+    )
+
+    # assertion
+    assert dr.simplify(expr - expr2) == 0
+
 def test_canonical_ordering():
 
     # Test the canonical ordering functionality
@@ -306,6 +342,39 @@ def test_canonical_ordering():
     assert dr.simplify(expr1a - Pdag_r * N_r * P_r * cdag_p_up * cdag_p_dn) == 0
     assert dr.simplify(expr2a - Pdag_r * Jp_q * Jz_q * Jm_q * cdag_p_up * cdag_p_dn) == 0
 
-# def test_unique_indices_functionality():
+def test_get_seniority_zero():
 
-# def test_get_seniority_zero():
+    # Get seniority zero expressions corresponding to some test results that we know already
+    #   This will indirectly also include testing of extract_su2
+
+    # Initialise drudge
+    ctx = SparkContext()
+    dr = AGPFermi(ctx)
+
+    # namespace
+    names = dr.names
+
+    # Indices
+    p, q, r, s = names.A_dumms[:4]
+
+    # Operators
+    cdag_p_up = names.c_dag[p, UP]
+    cdag_p_dn = names.c_dag[p, DN]
+    c_p_up = names.c_[p, UP]
+    c_p_dn = names.c_[p, DN]
+
+    # expression1: should simplify to Np Np /4
+    expr1a = dr.simplify(cdag_p_up * cdag_p_dn * c_p_dn * c_p_up)
+    expr1 = dr.get_seniority_zero(expr1a)
+    res1 = dr.simplify(names.N_[p] * names.N_[p] / 4)
+
+    # expression2: should simplify to 2 Pdag_p P_q (when p not= q)
+    e_pq = names.e_[p, q]
+    dr.unique_indices([p, q])
+    expr2a = dr.simplify( e_pq * e_pq )
+    expr2 = dr.get_seniority_zero(expr2a)
+    res2 = dr.simplify(names.P_dag[p] * names.P_[q] * 2)
+
+    # assertions
+    assert dr.simplify(expr1 - res1) == 0
+    assert dr.simplify(expr2 - res2) == 0
