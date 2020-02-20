@@ -56,17 +56,29 @@ def test_pairing_comm_rules():
     Pdag_p = names.P_dag[p]
     P_q = names.P_[q]
     N_p = names.N[p]
+    Nup_p = dr.N_up[p]
+    Ndn_p = dr.N_dn[p]
     N_q = names.N[q]
+    Nup_q = dr.N_up[q]
+    Ndn_q = dr.N_dn[q]
 
     # Commutation relations
     expr1 = dr.simplify(Pdag_p * P_q - P_q * Pdag_p)
     expr2 = dr.simplify(N_q * Pdag_p - Pdag_p * N_q)
+    expr2a = dr.simplify(Nup_q * Pdag_p - Pdag_p * Nup_q)
+    expr2b = dr.simplify(Ndn_q * Pdag_p - Pdag_p * Ndn_q)
     expr3 = dr.simplify(N_p * P_q - P_q * N_p)
+    expr3a = dr.simplify(Nup_p * P_q - P_q * Nup_p)
+    expr3b = dr.simplify(Ndn_p * P_q - P_q * Ndn_p)
 
     # Assertions
     assert dr.simplify(expr1 - delK(p, q)*(names.N[p] - 1)) == 0
     assert dr.simplify(expr2 - 2*delK(p, q)*Pdag_p) == 0
+    assert dr.simplify(expr2a - delK(p, q)*Pdag_p) == 0
+    assert dr.simplify(expr2b - delK(p, q)*Pdag_p) == 0
     assert dr.simplify(expr3 + 2*delK(p, q)*P_q) == 0
+    assert dr.simplify(expr3a + delK(p, q)*P_q) == 0
+    assert dr.simplify(expr3b + delK(p, q)*P_q) == 0
 
 def test_spinflip_su2_comm_rules():
 
