@@ -129,6 +129,7 @@ def test_inter_algebra_comm_rules():
     c_p = names.c_[p, UP]
     
     N_q = names.N_[q]
+    Nup_q = dr.N_up[q]
     Pdag_q = names.P_dag[q]
     P_q = names.P_[q]
 
@@ -143,10 +144,14 @@ def test_inter_algebra_comm_rules():
     expr1d = dr.simplify(Pdag_q * c_p - c_p * Pdag_q)
     expr1e = dr.simplify(P_q * cdag_p - cdag_p * P_q)
     expr1f = dr.simplify(P_q * c_p - c_p * P_q)
+    expr1g = dr.simplify(Nup_q * cdag_p - cdag_p * Nup_q)
+    expr1h = dr.simplify(Nup_q * c_p - c_p * Nup_q)
 
     expr2a = dr.simplify(N_q * Jp_r - Jp_r * N_q)
     expr2b = dr.simplify(N_q * Jm_r - Jm_r * N_q)
     expr2c = dr.simplify(N_q * Jz_r - Jz_r * N_q)
+    expr2d = dr.simplify(Nup_q * Jp_r - Jp_r * Nup_q)
+    expr2e = dr.simplify(Nup_q * Jm_r - Jm_r * Nup_q)
 
     expr3a = dr.simplify(P_q * Jp_r - Jp_r * P_q)
     expr3b = dr.simplify(P_q * Jm_r - Jm_r * P_q)
@@ -170,10 +175,14 @@ def test_inter_algebra_comm_rules():
     assert dr.simplify(expr1d + delK(p, q)*names.c_dag[p, DN]) == 0
     assert dr.simplify(expr1e - delK(p, q)*names.c_[p, DN]) == 0
     assert expr1f == 0
+    assert dr.simplify(expr1g - delK(p, q)*cdag_p) == 0
+    assert dr.simplify(expr1h + delK(p, q)*c_p) == 0
 
     assert expr2a == 0
     assert expr2b == 0
     assert expr2c == 0
+    assert dr.simplify(expr2d - delK(q, r)*Jp_r) == 0
+    assert dr.simplify(expr2e + delK(q, r)*Jm_r) == 0
 
     assert expr3a == 0
     assert expr3b == 0

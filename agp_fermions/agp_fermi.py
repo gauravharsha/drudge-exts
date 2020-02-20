@@ -500,9 +500,9 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
         if char2 == _P_DAG:
             return _UNITY, _NOUGHT
         elif char2 == _N_UP_:
-            return _UNITY, _NOUGHT
+            return _UNITY, _NEGONE * delta * spec.S_p[indice1]
         elif char2 == _N_DN_:
-            return _UNITY, _NOUGHT
+            return _UNITY, delta * spec.S_p[indice1]
         elif char2 == _N_:
             return _UNITY, _NOUGHT
         elif char2 == _P_:
@@ -538,9 +538,9 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
         if char2 == _P_DAG:
             return _UNITY, _NOUGHT
         elif char2 == _N_UP_:
-            return _UNITY, _NOUGHT
+            return _UNITY, delta * spec.S_m[indice1]
         elif char2 == _N_DN_:
-            return _UNITY, _NOUGHT
+            return _UNITY, _NEGONE * delta * spec.S_m[indice1]
         elif char2 == _N_:
             return _UNITY, _NOUGHT
         elif char2 == _P_:
