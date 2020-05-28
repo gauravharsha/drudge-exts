@@ -750,8 +750,9 @@ def _no_fermi_filter(term, spec: _AGPFSpec):
     for v in vecs:
         if v.base in (cr, an):
             return False
-        else:
-            return True
+
+    return True
+
 
 def _even_fermi_filter(term, spec: _AGPFSpec):
     """Filter function to throw away the terms containing odd number of fermion operators
@@ -771,6 +772,7 @@ def _even_fermi_filter(term, spec: _AGPFSpec):
         return True
     else:
         return False
+
 
 def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     """Given a term with a list of vectors, extract the obvious BCS vectors
