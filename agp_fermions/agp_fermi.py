@@ -1,22 +1,17 @@
 """
 Drudge for BCS-AGP-fermionic algebra
 """
-import collections, functools, operator, re, typing
-from itertools import product
+import collections
+import functools
+import operator
 
 from sympy import (
-    sympify, Symbol, KroneckerDelta, Eq, solveset, S, Integer, Add, Mul, Number,
-    Indexed, IndexedBase, Expr, Basic, Pow, Wild, conjugate, Sum, Piecewise,
-    Intersection, expand_power_base, expand_power_exp, Rational, ordered
+    Symbol, KroneckerDelta, Integer, Mul, Number, Expr, Rational, ordered
 )
 
-from sympy.utilities.iterables import default_sort_key
-
 from drudge import Tensor, TensorDef
-from drudge.canon import IDENT,NEG
 from drudge.genquad import GenQuadDrudge
-from drudge.fock import SpinOneHalf, CranChar, PartHoleDrudge, SpinOneHalfPartHoleDrudge
-from drudge.canonpy import Perm
+from drudge.fock import SpinOneHalf, CranChar
 from drudge.term import Vec, Range, Term
 from drudge.utils import sympy_key
 from drudge.fock import SpinOneHalfGenDrudge
@@ -25,6 +20,7 @@ from bcs import *
 
 UP = SpinOneHalf.UP
 DOWN = SpinOneHalf.DOWN
+
 
 class AGPFermi(GenQuadDrudge):
     r"""
@@ -76,7 +72,7 @@ class AGPFermi(GenQuadDrudge):
         super().__init__(ctx, **kwargs)
 
         # Initialize SpinOneHalfGenDrudge with the described orbital ranges
-        orb = ((all_orb_range, all_orb_dumms),(spin_range, spin_dumms))
+        orb = ((all_orb_range, all_orb_dumms), (spin_range, spin_dumms))
         fermi_dr = SpinOneHalfGenDrudge(
             ctx, orb=orb, op_label=op_label, **kwargs
         )
@@ -97,8 +93,8 @@ class AGPFermi(GenQuadDrudge):
         })
 
         # Define and add the spin range and dummy indices to the drudge module
-        # XXX: Note that the spin dummies are useless in this module and must be
-        #   removed eventually
+        # XXX: Note that the spin dummies are useless in this module and must
+        #   be removed eventually
         self.add_resolver({
             UP: spin_range,
             DOWN: spin_range
@@ -106,8 +102,9 @@ class AGPFermi(GenQuadDrudge):
         self.spin_range = spin_range
         self.spin_dumms = self.dumms.value[spin_range]
 
-        #Pairing operators
-        bcs_dr = ReducedBCSDrudge(ctx,
+        # Pairing operators
+        bcs_dr = ReducedBCSDrudge(
+            ctx,
             all_orb_range=all_orb_range, all_orb_dumms=all_orb_dumms,
             cartan=bcs_N, raise_=bcs_Pdag, lower=bcs_P,
         )
@@ -118,7 +115,8 @@ class AGPFermi(GenQuadDrudge):
         self.eval_agp = bcs_dr.eval_agp
 
         # SU2 operators
-        su2_dr = SU2LatticeDrudge(ctx,
+        su2_dr = SU2LatticeDrudge(
+            ctx,
             cartan=su2_Jz, raise_=su2_Jp, lower=su2_Jm,
         )
         self.su2_dr = su2_dr
@@ -142,19 +140,22 @@ class AGPFermi(GenQuadDrudge):
         p = Symbol('p')
         q = Symbol('q')
         sigma = self.dumms.value[spin_range][0]
-        self.e_ = TensorDef(Vec('E'), (p, q),self.sum(
-            self.cr[p, UP] * self.an[q, UP] + self.cr[p, DOWN] * self.an[q, DOWN]
+        self.e_ = TensorDef(Vec('E'), (p, q), self.sum(
+            self.cr[p, UP] * self.an[q, UP]
+            + self.cr[p, DOWN] * self.an[q, DOWN]
             )
         )
         self.set_name(e_=self.e_)
 
         # set of unique dummies:
-        #   The idea is to declare a set of (free) dummy indices to be unique, i.e. they have
-        #   unique, different values by construction. This is a feature of this module / class
-        #   but has potential to be a part of the drudge system.
+        # The idea is to declare a set of (free) dummy indices to be unique,
+        # i.e. they have unique, different values by construction.
+        # This is a feature of this module / class but has potential to be a
+        # part of the drudge system.
         # The way I want to implement this is as follows:
         #   1. User specifies a tuple/list of indices to be set unique
-        #   2. Then we construct a dictionary of all proosible kronecker deltas which will be zero
+        #   2. Then we construct a dictionary of all proosible kronecker deltas
+        #       which will be zero
         #   3. in simplify / get_seniority_zero, we use this substitution.
 
         # Dictionary of substitutions
@@ -166,26 +167,28 @@ class AGPFermi(GenQuadDrudge):
         # Set the names
         self.set_name(*self.all_orb_dumms)
         self.set_name(**{
-            op_label+'_' : an,
-            op_label+'_dag' : cr,
-            op_label+'dag_' : cr,
-            Sz_.label[0]+'_z' : Sz_,
-            Sp_.label[0]+'_p' : Sp_,
-            Sm_.label[0]+'_m' : Sm_,
-            N_.label[0] : N_,
-            N_.label[0]+'_' : N_,
-            Pdag_.label[0]+'dag' : Pdag_,
-            Pdag_.label[0]+'_dag' : Pdag_,
-            P_.label[0] : P_,
-            P_.label[0]+'_' : P_,
+            op_label+'_': an,
+            op_label+'_dag': cr,
+            op_label+'dag_': cr,
+            Sz_.label[0]+'_z': Sz_,
+            Sp_.label[0]+'_p': Sp_,
+            Sm_.label[0]+'_m': Sm_,
+            N_.label[0]: N_,
+            N_.label[0]+'_': N_,
+            Pdag_.label[0]+'dag': Pdag_,
+            Pdag_.label[0]+'_dag': Pdag_,
+            P_.label[0]: P_,
+            P_.label[0]+'_': P_,
         })
 
-        # Define spec for all the class methods needed for extracting the su2 operators
+        # Define spec for all the class methods needed for
+        # extracting the su2 operators
         spec = _AGPFSpec(
-            c_=self.an, c_dag=self.cr, N=self.N, Nup=self.N_up, Ndn=self.N_dn, 
-            P=self.P, Pdag=self.Pdag, agproot=bcs_root, agpnorm=bcs_norm, 
+            c_=self.an, c_dag=self.cr, N=self.N, Nup=self.N_up, Ndn=self.N_dn,
+            P=self.P, Pdag=self.Pdag, agproot=bcs_root, agpnorm=bcs_norm,
             agpshift=bcs_shift, S_p=self.S_p, S_z=self.S_z, S_m=self.S_m,
-            su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift, unique_ind=self.unique_del_lists
+            su2root=su2_root, su2norm=su2_norm, su2shift=su2_shift,
+            unique_ind=self.unique_del_lists
         )
         self._spec = spec
 
@@ -197,21 +200,22 @@ class AGPFermi(GenQuadDrudge):
 
     # Do not use `\otimes' in latex expressions for the operators.
     _latex_vec_mul = ' '
-        
+
     @property
     def swapper(self) -> GenQuadDrudge.Swapper:
         """The swapper for the AGPF algebra -- invoked only when at least one
         of the two vectors is SU2 or BCS generator
         """
         return self._swapper
-    
+
     def _latex_vec(self, vec):
         """Get the LaTeX form of operators. This needs over-writing because the
         fermionic expressions encode creation and annihilation as an index,
-        while the SU2 operators have daggers / + defined in the symbol definition.
+        while the SU2 operators have daggers or + defined in the symbol
+        definition.
         """
 
-        if ((vec.base==self.cr.base) or (vec.base==self.an.base)):
+        if ((vec.base == self.cr.base) or (vec.base == self.an.base)):
             return self.fermi_dr._latex_vec(vec)
         else:
             return super()._latex_vec(vec)
@@ -223,6 +227,7 @@ class AGPFermi(GenQuadDrudge):
         noed = super().normal_order(terms, **kwargs)
         noed = noed.filter(_nonzero_by_nilp)
         noed = noed.filter(_nonzero_by_cartan)
+
         noed = noed.flatMap(
             functools.partial(
                 _canonicalize_indices, spec=self._spec
@@ -230,11 +235,11 @@ class AGPFermi(GenQuadDrudge):
         )
 
         return noed
-    
+
     def unique_indices(self, indlist):
         """
-        Function that takes a list / tuple of indices, which would be unique among
-        themselves, and then update the dictionary of substitutions
+        Function that takes a list / tuple of indices, which would be unique
+        among themselves, and then update the dictionary of substitutions
         """
 
         # Extract the unique set of indices
@@ -250,7 +255,6 @@ class AGPFermi(GenQuadDrudge):
         Reset the unique_del_substs dictionary to empty
         """
         self.unique_del_lists.clear()
-
 
     def canon_indices(self, expression: Tensor):
         """Bind function to canonicalize free / external indices.
@@ -291,7 +295,7 @@ class AGPFermi(GenQuadDrudge):
         """
 
         # 1, simplify -- includes canonicalization
-        expr1 = self.simplify( self.simplify(tnsr) )
+        expr1 = self.simplify(self.simplify(tnsr))
 
         # 2, throw away terms with odd number of fermion terms
         expr = self.simplify(
@@ -346,7 +350,7 @@ class AGPFermi(GenQuadDrudge):
         return expr
 
 
-_AGPFSpec = collections.namedtuple('_AGPFSpec',[
+_AGPFSpec = collections.namedtuple('_AGPFSpec', [
     'c_',
     'c_dag',
     'N',
@@ -377,16 +381,17 @@ _S_M = 7
 _C_ = 8
 _C_DAG = 9
 
+
 def _parse_vec(vec, spec: _AGPFSpec):
     """Get the character, lattice indices, and indices keys of the vector.
     """
     base = vec.base
     indices = vec.indices
     if base == spec.c_.base:
-        if vec.indices[0]==CranChar.AN:
+        if vec.indices[0] == CranChar.AN:
             char = _C_
             indices = vec.indices[1:]
-        elif vec.indices[0]==CranChar.CR:
+        elif vec.indices[0] == CranChar.CR:
             char = _C_DAG
             indices = vec.indices[1:]
         else:
@@ -413,6 +418,7 @@ def _parse_vec(vec, spec: _AGPFSpec):
     keys = tuple(sympy_key(i) for i in indices[0:1])
 
     return char, indices, keys
+
 
 def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
     if depth is None:
@@ -577,7 +583,8 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             return _UNITY, _NEGONE * delta * spec.c_dag[indice1]
         elif char2 == _P_:
             if indice1[1] == SpinOneHalf.UP:
-                return _UNITY, _NEGONE * delta * spec.c_[indice1[0], SpinOneHalf.DOWN]
+                return _UNITY, \
+                    _NEGONE * delta * spec.c_[indice1[0], SpinOneHalf.DOWN]
             elif indice1[1] == SpinOneHalf.DOWN:
                 return _UNITY, delta * spec.c_[indice1[0], SpinOneHalf.UP]
             else:
@@ -588,9 +595,11 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             return _UNITY, _NEGHALF * delta * spec.c_dag[indice1]
         elif char2 == _S_M:
             if indice1[1] == SpinOneHalf.UP:
-                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
+                return _UNITY, \
+                    _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
             elif indice1[1] == SpinOneHalf.DOWN:
-                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
+                return _UNITY, \
+                    _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
             else:
                 assert False
         elif char2 == _C_DAG:
@@ -625,7 +634,8 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
             if indice1[1] == SpinOneHalf.UP:
                 return _UNITY, delta * spec.c_dag[indice1[0], SpinOneHalf.DOWN]
             elif indice1[1] == SpinOneHalf.DOWN:
-                return _UNITY, _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
+                return _UNITY, \
+                    _NEGONE * delta * spec.c_dag[indice1[0], SpinOneHalf.UP]
             else:
                 assert False
         elif char2 == _N_UP_:
@@ -693,10 +703,12 @@ def _swap_agpf(vec1: Vec, vec2: Vec, depth=None, *, spec: _AGPFSpec):
         # return None
         assert False
 
+
 def _nonzero_by_cartan(term: Term):
     """If the term is zero because of the cartan in it.
     NOTE: the nonzero by cartan filter should be used only when the terms are
-    already in a canonical/normal order so that the Pdag N P terms are kept together.
+    already in a canonical/normal order so that the Pdag N, and P terms
+    are kept together.
     """
 
     raise_ = AGPFermi.PAIRING_RAISE
@@ -724,6 +736,7 @@ def _nonzero_by_cartan(term: Term):
 
     return True
 
+
 def _nonzero_by_nilp(term: Term):
     """Need a function to filter terms based on nilpotency of fermion operators
     """
@@ -735,6 +748,7 @@ def _nonzero_by_nilp(term: Term):
         )
         for i in range(0, len(vecs)-1)
     )
+
 
 def _no_fermi_filter(term, spec: _AGPFSpec):
     """Filter to drop all terms with c_dag or c_ operators
@@ -755,7 +769,8 @@ def _no_fermi_filter(term, spec: _AGPFSpec):
 
 
 def _even_fermi_filter(term, spec: _AGPFSpec):
-    """Filter function to throw away the terms containing odd number of fermion operators
+    """Filter function to throw away the terms containing odd number
+    of fermion operators
     """
     vecs = term.vecs
 
@@ -798,60 +813,58 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
     cr = (spec.c_dag.base, spec.c_dag.indices[0])
     an = (spec.c_.base, spec.c_.indices[0])
 
+    # Get rid of the trivial case where no SU2 vector is possible.
     if len(vecs) <= 1:
         new_vecs = vecs
-    else:
+        return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
 
-        # First, let us extract all the number and pair-annihilation operators 
-        i = 0
-        while i < (len(vecs)-1):
+    # Now onto the more involved situations:
+    # First, let us extract all the number and pair-annihilation operators
+    i = 0
+    while i < (len(vecs)-1):
 
-            v1 = (vecs[i].base, vecs[i].indices[0])
-            v2 = (vecs[i+1].base, vecs[i+1].indices[0])
+        v1 = (vecs[i].base, vecs[i].indices[0])
+        v2 = (vecs[i+1].base, vecs[i+1].indices[0])
 
-            if (v1 == cr):
-                if (v2==an):
-                    if (vecs[i].indices[1:] == vecs[i+1].indices[1:]):
-                        if vecs[i].indices[2] == SpinOneHalf.UP:
-                            int_vecs.append(N_up[vecs[i].indices[1]])
-                        elif vecs[i].indices[2] == SpinOneHalf.DOWN:
-                            int_vecs.append(N_dn[vecs[i].indices[1]])
-                        i += 2
-                        continue
-                    # elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
-                    #     if vecs[i].indices[2] == SpinOneHalf.UP:
-                    #         int_vecs.append(SP[vecs[i].indices[1]])
-                    #         i += 2
-                    #         continue
-                    #     else:
-                    #         int_vecs.append(SM[vecs[i].indices[1]])
-                    #         i += 2
-                    #         continue
-                    else:
-                        int_vecs.append(vecs[i])
-                        i += 1
-                        continue
-                elif (v2==cr):
-                    # Do not consider the pair-creation operators yet
+        if (v1 == cr):
+            if (v2 == an):
+                if (vecs[i].indices[1:] == vecs[i+1].indices[1:]):
+                    if vecs[i].indices[2] == SpinOneHalf.UP:
+                        int_vecs.append(N_up[vecs[i].indices[1]])
+                    elif vecs[i].indices[2] == SpinOneHalf.DOWN:
+                        int_vecs.append(N_dn[vecs[i].indices[1]])
+                    i += 2
+                    continue
+                # elif (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                #     if vecs[i].indices[2] == SpinOneHalf.UP:
+                #         int_vecs.append(SP[vecs[i].indices[1]])
+                #         i += 2
+                #         continue
+                #     else:
+                #         int_vecs.append(SM[vecs[i].indices[1]])
+                #         i += 2
+                #         continue
+                else:
                     int_vecs.append(vecs[i])
                     i += 1
                     continue
-                else:
-                    raise ValueError('Input term is not simplified')
+            elif (v2 == cr):
+                # Do not consider the pair-creation operators yet
+                int_vecs.append(vecs[i])
+                i += 1
+                continue
+            else:
+                raise ValueError('Input term is not simplified')
 
-            elif (v1 == an):
-                if (v2 == an):
-                    if (vecs[i].indices[1] == vecs[i+1].indices[1]):
-                        # if both annihilation, and have same lattice index,
-                        #   then assuming the term is simplified, the spins
-                        #    must be opposite (first one would be DOWN)
-                        int_vecs.append(P[vecs[i].indices[1]])
-                        i += 2
-                        continue
-                    else:
-                        int_vecs.append(vecs[i])
-                        i += 1
-                        continue
+        elif (v1 == an):
+            if (v2 == an):
+                if (vecs[i].indices[1] == vecs[i+1].indices[1]):
+                    # if both annihilation, and have same lattice index,
+                    #   then assuming the term is simplified, the spins
+                    #    must be opposite (first one would be DOWN)
+                    int_vecs.append(P[vecs[i].indices[1]])
+                    i += 2
+                    continue
                 else:
                     int_vecs.append(vecs[i])
                     i += 1
@@ -860,53 +873,60 @@ def _get_su2_vecs(term: Term, spec: _AGPFSpec):
                 int_vecs.append(vecs[i])
                 i += 1
                 continue
-
-        # If the last two operators did not map, we are left with the last fermion operator
-        if i == len(vecs) - 1:
+        else:
             int_vecs.append(vecs[i])
+            i += 1
+            continue
 
-        # Now map all the pair-creation operators
-        i = 0
-        while i < (len(int_vecs)-1):
+    # If the last two operators did not map, we are left with
+    # the last fermion operator
+    if i == len(vecs) - 1:
+        int_vecs.append(vecs[i])
 
-            v1 = (int_vecs[i].base, int_vecs[i].indices[0])
-            v2 = (int_vecs[i+1].base, int_vecs[i+1].indices[0])
+    # Now map all the pair-creation operators
+    i = 0
+    while i < (len(int_vecs)-1):
 
-            if (v1 == cr):
-                if (v2 == cr):
-                    if (int_vecs[i].indices[1] == int_vecs[i+1].indices[1]):
-                        # if both creation, and have same lattice index,
-                        #   then assuming term is simplified, the spins must be
-                        #   opposite.
-                        new_vecs.append(Pdag[int_vecs[i].indices[1]])
-                        i += 2
-                        continue
-                    else:
-                        new_vecs.append(int_vecs[i])
-                        i += 1
-                        continue
+        v1 = (int_vecs[i].base, int_vecs[i].indices[0])
+        v2 = (int_vecs[i+1].base, int_vecs[i+1].indices[0])
+
+        if (v1 == cr):
+            if (v2 == cr):
+                if (int_vecs[i].indices[1] == int_vecs[i+1].indices[1]):
+                    # if both creation, and have same lattice index,
+                    #   then assuming term is simplified, the spins must be
+                    #   opposite.
+                    new_vecs.append(Pdag[int_vecs[i].indices[1]])
+                    i += 2
+                    continue
                 else:
                     new_vecs.append(int_vecs[i])
                     i += 1
                     continue
-                    # raise ValueError('Input term is not simplified')
             else:
                 new_vecs.append(int_vecs[i])
                 i += 1
                 continue
-
-        # If the last two operators did not map, we are left with the last fermion operator
-        if i == len(int_vecs) - 1:
+                # raise ValueError('Input term is not simplified')
+        else:
             new_vecs.append(int_vecs[i])
+            i += 1
+            continue
+
+    # If the last two operators did not map, we are left with
+    # the last fermion operator
+    if i == len(int_vecs) - 1:
+        new_vecs.append(int_vecs[i])
 
     return [Term(sums=term.sums, amp=amp, vecs=new_vecs)]
+
 
 def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
     """Given a term with a list of fermionic vectors, extract the various
     partitions of N, Pdag and P kind of terms.
 
-    Assumes: All possible simplification and Pairing / SU2 extraction has been performed,
-    i.e. all the indices are distinct.
+    Assumes: All possible simplification and Pairing / SU2 extraction
+    has been performed, i.e. all the indices are distinct.
     """
 
     vecs = term.vecs
@@ -925,13 +945,16 @@ def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
         # if there are no fermion operators, return the term as it is
         return [Term(sums=term.sums, amp=amp, vecs=vecs)]
     else:
-        # if there are fermion operators, then get all the possible partitions of indices
+        # if there are fermion operators, then get all the possible
+        # partitions of indices
         deltas_partns = list(_generate_partitions(fermi_indcs))
 
-    # get a list of even partitions, i.e. throw away partitions involving odd number of indices
+    # get a list of even partitions, i.e. throw away partitions involving
+    # odd number of indices
     evens = [
         all(
-            len(deltas_partns[i][j])%2 == 0 for j in range(len(deltas_partns[i]))
+            len(deltas_partns[i][j]) % 2 == 0
+            for j in range(len(deltas_partns[i]))
         ) for i in range(len(deltas_partns))
     ]
 
@@ -950,7 +973,7 @@ def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
         delta_intmd = Integer(1)
         for i in range(len(pt)):
             delta_intmd *= _construct_deltas(pt[i])
-            if i>0:
+            if i > 0:
                 delta_intmd *= (
                     1 - KroneckerDelta(pt[i][0], pt[i-1][0])
                 )
@@ -959,6 +982,7 @@ def _get_fermi_partitions(term: Term, spec: _AGPFSpec):
     new_amp = amp * delta_amp
 
     return [Term(sums=term.sums, amp=new_amp, vecs=vecs)]
+
 
 def _construct_deltas(indices):
     """Given a list of indices, form all possible KroneckerDelta pairs
@@ -969,8 +993,10 @@ def _construct_deltas(indices):
 
     return del_pairs
 
+
 def _generate_partitions(indices):
-    """A general function that generates all possible partitions for a given set of indices
+    """A general function that generates all possible partitions for
+    a given set of indices
     """
 
     if len(indices) == 1:
@@ -981,13 +1007,14 @@ def _generate_partitions(indices):
     for smaller in _generate_partitions(indices[1:]):
         # insert `first' in each of sub-partitions subsets
         for n, subset in enumerate(smaller):
-            yield smaller[:n] + [[ first ] + subset] + smaller[n+1:]
+            yield smaller[:n] + [[first] + subset] + smaller[n+1:]
         # put `first' in its own subset
-        yield [[ first ]] + smaller
+        yield [[first]] + smaller
+
 
 def _delta_map(input_substs):
-    """Function takes in a dictionary of substitutions and creates a set of connected
-    lists of indices of the KroneckerDeltas
+    """Function takes in a dictionary of substitutions and creates a set of
+    connected lists of indices of the KroneckerDeltas
     """
 
     substs = input_substs.copy()
@@ -995,8 +1022,8 @@ def _delta_map(input_substs):
     # First get the keys of the dictionary
     dict_keys = list(substs.keys())
 
-    # Start with the first key - see where it points to and see if the substituting index
-    # is itself in the keys
+    # Start with the first key - see where it points to and see if the
+    # substituting index is itself in the keys
 
     delta_lists = []
     new_list = []
@@ -1017,7 +1044,7 @@ def _delta_map(input_substs):
 
         if val in dict_keys:
 
-            # Update the elements 
+            # Update the elements
             key = val
             continue
 
@@ -1034,11 +1061,13 @@ def _delta_map(input_substs):
                 for lst in delta_lists:
                     ovlp = list(set(lst) & set(new_set))
                     if ovlp:
-                        delta_lists[lst_ind] = delta_lists[lst_ind].union(new_set)
+                        delta_lists[lst_ind] = delta_lists[lst_ind].union(
+                            new_set
+                        )
                         lst_added = True
                         break
                     lst_ind += 1
-                if lst_added == False:
+                if lst_added is False:
                     delta_lists.append(new_set)
 
             if dict_keys:
@@ -1046,6 +1075,7 @@ def _delta_map(input_substs):
                 new_list = [key, ]
 
     return delta_lists
+
 
 def _canonicalize_indices(term: Term, spec: _AGPFSpec):
     """Here, we canonicalize the free indices in the tensor expressions - that
@@ -1060,11 +1090,9 @@ def _canonicalize_indices(term: Term, spec: _AGPFSpec):
     # it should return zero/empty term.
     unique_list = spec.unique_ind
 
-    # To make canonicalization a one step process, we can define new substitutions
-    # list based on the delta map
+    # New substitutions based on the chain of delta
     new_substs = {}
 
-    # Get the delta map from the substs
     if substs:
         dlists = _delta_map(substs)
 
@@ -1079,7 +1107,7 @@ def _canonicalize_indices(term: Term, spec: _AGPFSpec):
                 continue
 
             for s2 in unique_list:
-                if len(list(s1 & s2))>1:
+                if len(list(s1 & s2)) > 1:
                     return []
                 else:
                     continue
@@ -1088,6 +1116,7 @@ def _canonicalize_indices(term: Term, spec: _AGPFSpec):
     new_term = term.subst(new_substs)
 
     return [Term(sums=new_term.sums, amp=new_amp, vecs=new_term.vecs)]
+
 
 def _try_simpl_unresolved_deltas(amp: Expr):
     """Try some simplification on unresolved deltas.
@@ -1140,10 +1169,11 @@ def _try_simpl_unresolved_deltas(amp: Expr):
             if isinstance(i, KroneckerDelta):
                 arg1, arg2 = i.args
 
-                # Here, only the simplest case is treated, a * x = b * y, with a, b
-                # being numbers and x, y being atomic symbols.  One of the symbols
-                # can be missing.  But not both, since SymPy will automatically
-                # resolve a delta between two numbers.
+                # Here, only the simplest case is treated, a * x = b * y,
+                # with a, b being numbers and x, y being atomic symbols.
+                # One of the symbols can be missing.  But not both,
+                # since SymPy will automatically resolve a delta between
+                # two numbers.
 
                 factor1, symb1 = _parse_factor_symb(arg1)
                 factor2, symb2 = _parse_factor_symb(arg2)
@@ -1167,7 +1197,8 @@ def _try_simpl_unresolved_deltas(amp: Expr):
                     if arg1 not in list(substs.keys()):
                         substs[arg1] = arg2
                     else:
-                        # if the arg1 exists in the key, multiply with the new delta
+                        # if the arg1 exists in the key,
+                        # multiply with the new delta
                         deltas *= KroneckerDelta(arg2, substs[arg1])
                 deltas *= KroneckerDelta(arg1, arg2)
             else:
@@ -1175,6 +1206,7 @@ def _try_simpl_unresolved_deltas(amp: Expr):
 
     others = others.xreplace(substs)
     return deltas * others, substs
+
 
 def _parse_factor_symb(expr: Expr):
     """Parse a number times a symbol.
@@ -1205,9 +1237,10 @@ def _parse_factor_symb(expr: Expr):
     else:
         return None, None
 
+
 _UNITY = Integer(1)
-_HALF = Rational(1,2)
+_HALF = Rational(1, 2)
 _NOUGHT = Integer(0)
 _NEGONE = Integer(-1)
-_NEGHALF = -Rational(1,2)
+_NEGHALF = -Rational(1, 2)
 _TWO = Integer(2)
