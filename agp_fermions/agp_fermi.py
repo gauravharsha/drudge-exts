@@ -12,7 +12,7 @@ from sympy import (
 from drudge import Tensor, TensorDef
 from drudge.genquad import GenQuadDrudge
 from drudge.fock import SpinOneHalf, CranChar
-from drudge.term import Vec, Range, Term
+from drudge.term import Vec, Range, Term, try_resolve_range
 from drudge.utils import sympy_key
 from drudge.fock import SpinOneHalfGenDrudge
 
@@ -50,7 +50,7 @@ class AGPFermi(GenQuadDrudge):
     SPIN_RAISE = Vec(r'J^+')
     SPIN_LOWER = Vec(r'J^-')
 
-    DEFAULT_ORB_DUMMS = tuple(Symbol(i) for i in 'pqrsijklabcd') + tuple(
+    DEFAULT_ORB_DUMMS = tuple(Symbol(i) for i in 'pqrs') + tuple(
         Symbol('p{}'.format(i)) for i in range(50)
     )
 
@@ -126,7 +126,7 @@ class AGPFermi(GenQuadDrudge):
 
         # Assign these operators to the self
         self.all_orb_range = all_orb_range
-        self.all_orb_dumms = all_orb_dumms
+        self.all_orb_dumms = tuple(all_orb_dumms)
         self.Pdag = Pdag_
         self.N = N_
         self.N_up = bcs_Nup
@@ -139,7 +139,7 @@ class AGPFermi(GenQuadDrudge):
         # Define the unitary group operators
         p = Symbol('p')
         q = Symbol('q')
-        sigma = self.dumms.value[spin_range][0]
+        self.sigma = self.dumms.value[spin_range][0]
         self.e_ = TensorDef(Vec('E'), (p, q), self.sum(
             self.cr[p, UP] * self.an[q, UP]
             + self.cr[p, DOWN] * self.an[q, DOWN]
@@ -241,12 +241,27 @@ class AGPFermi(GenQuadDrudge):
         Function that takes a list / tuple of indices, which would be unique
         among themselves, and then update the dictionary of substitutions
         """
-
         # Extract the unique set of indices
         unq_ind = set(indlist)
 
         # Update the list
         self.unique_del_lists.append(unq_ind)
+
+        # Remove the indices from the dummy indices
+        for ind in indlist:
+            orb_range = try_resolve_range(ind, {}, self.resolvers.value)
+            if not isinstance(orb_range, collections.Iterable):
+                orb_range = (orb_range, )
+
+            if orb_range is None:
+                continue
+            elif all(
+                [ind not in self._dumms.var[rg] for rg in orb_range]
+            ):
+                continue
+            else:
+                for rg in tuple(orb_range):
+                    self._dumms.var[rg].remove(ind)
 
         return
 
@@ -254,7 +269,13 @@ class AGPFermi(GenQuadDrudge):
         """
         Reset the unique_del_substs dictionary to empty
         """
+
         self.unique_del_lists.clear()
+
+        # Reset the dummy values
+        self.set_dumms(self.all_orb_range, self.all_orb_dumms)
+
+        return
 
     def canon_indices(self, expression: Tensor):
         """Bind function to canonicalize free / external indices.
@@ -276,12 +297,12 @@ class AGPFermi(GenQuadDrudge):
         strings"""
 
         gen_idx = self.all_orb_dumms[0]
-        sp_def = dr.define(
-            SP, gen_idx,
+        sp_def = self.define(
+            SPIN_RAISE, gen_idx,
             cr[gen_idx, SpinOneHalf.UP]*an[gen_idx, SpinOneHalf.DOWN]
         )
-        sm_def = dr.define(
-            SM, gen_idx,
+        sm_def = self.define(
+            SPIN_LOWER, gen_idx,
             cr[gen_idx, SpinOneHalf.DOWN]*an[gen_idx, SpinOneHalf.UP]
         )
         spin_defs = [sp_def, sm_def]
@@ -348,6 +369,106 @@ class AGPFermi(GenQuadDrudge):
         )
 
         return expr
+
+
+class PartHoleAGPFermi(AGPFermi):
+    """
+    Particle-hole variation of the AGP Fermi module.
+    """
+
+    PAIRING_CARTAN = Vec(r'N')
+    PAIRING_RAISE = Vec(r'P^\dagger')
+    PAIRING_LOWER = Vec(r'P')
+
+    NUMBER_UP = Vec(r'n^{\uparrow}')
+    NUMBER_DN = Vec(r'n^{\downarrow}')
+
+    SPIN_CARTAN = Vec(r'J^z')
+    SPIN_RAISE = Vec(r'J^+')
+    SPIN_LOWER = Vec(r'J^-')
+
+    DEFAULT_ORB_DUMMS = tuple(Symbol(i) for i in 'pqrs') + tuple(
+        Symbol('p{}'.format(i)) for i in range(50)
+    )
+
+    DEFAULT_PART_DUMMS = tuple(Symbol(i) for i in 'ijkl') + tuple(
+        Symbol('i{}'.format(i)) for i in range(50)
+    )
+
+    DEFAULT_HOLE_DUMMS = tuple(Symbol(i) for i in 'abcd') + tuple(
+        Symbol('a{}'.format(i)) for i in range(50)
+    )
+
+    def __init__(
+        self, ctx, op_label='c',
+        all_orb_range=Range('A', 0, Symbol(r'M')),
+        all_orb_dumms=DEFAULT_ORB_DUMMS,
+        part_range=Range('O', 0, Symbol('no')), part_dumms=DEFAULT_PART_DUMMS,
+        hole_range=Range('V', 0, Symbol('nv')), hole_dumms=DEFAULT_HOLE_DUMMS,
+        spin_range=Range(r'\uparrow \downarrow', Integer(0), Integer(2)),
+        spin_dumms=tuple(Symbol('sigma{}'.format(i)) for i in range(50)),
+        bcs_N=PAIRING_CARTAN, bcs_Pdag=PAIRING_RAISE, bcs_P=PAIRING_LOWER,
+        bcs_Nup=NUMBER_UP, bcs_Ndn=NUMBER_DN,
+        su2_Jz=SPIN_CARTAN, su2_Jp=SPIN_RAISE, su2_Jm=SPIN_LOWER,
+        bcs_root=Integer(2), bcs_norm=Integer(1), bcs_shift=Integer(-1),
+        su2_root=Integer(1), su2_norm=Integer(2), su2_shift=Integer(0),
+        **kwargs
+    ):
+
+        # Initialize super
+        super().__init__(
+            ctx, op_label=op_label, all_orb_range=all_orb_range,
+            all_orb_dumms=all_orb_dumms, spin_range=spin_range,
+            spin_dumms=spin_dumms, bcs_N=bcs_N, bcs_Pdag=bcs_Pdag, bcs_P=bcs_P,
+            bcs_Nup=bcs_Nup, bcs_Ndn=bcs_Ndn, su2_Jz=su2_Jz, su2_Jp=su2_Jp,
+            su2_Jm=su2_Jm, bcs_root=bcs_root, bcs_norm=bcs_norm,
+            bcs_shift=bcs_shift, su2_root=su2_root, su2_norm=su2_norm,
+            su2_shift=su2_shift, **kwargs
+        )
+
+        # Add the part-hole indices and ranges to the class varables
+        self.part_dumms = tuple(part_dumms)
+        self.hole_dumms = tuple(hole_dumms)
+        self.part_range = part_range
+        self.hole_range = hole_range
+
+        # Add the indices to the name space
+        self.set_name(*self.part_dumms)
+
+        # Link the dummy indices to their respective ranges
+        self.set_dumms(self.part_range, self.part_dumms)
+        self.set_dumms(self.hole_range, self.hole_dumms)
+
+        # Clean up the default resolver
+        self._resolvers.var.clear()
+
+        # Add the resolver
+        self.add_resolver({
+            i: (self.part_range) for i in self.part_dumms
+        })
+        self.add_resolver({
+            i: (self.hole_range) for i in self.hole_dumms
+        })
+        self.add_resolver({
+            i: (self.part_range, self.hole_range) for i in self.all_orb_dumms
+        })
+        self.add_resolver({
+            i: (self.all_orb_range) for i in self.all_orb_dumms
+        })
+
+    def purge_unique_indices(self):
+        """
+        Reset the unique_del_substs dictionary to empty
+        """
+
+        self.unique_del_lists.clear()
+
+        # Reset the dummy values
+        self.set_dumms(self.all_orb_range, self.all_orb_dumms)
+        self.set_dumms(self.part_range, self.part_dumms)
+        self.set_dumms(self.hole_range, self.hole_dumms)
+
+        return
 
 
 _AGPFSpec = collections.namedtuple('_AGPFSpec', [
