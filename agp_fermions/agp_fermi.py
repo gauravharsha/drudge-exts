@@ -250,12 +250,13 @@ class AGPFermi(GenQuadDrudge):
         # Remove the indices from the dummy indices
         for ind in indlist:
             orb_range = try_resolve_range(ind, {}, self.resolvers.value)
+            if orb_range is None:
+                continue
+
             if not isinstance(orb_range, collections.Iterable):
                 orb_range = (orb_range, )
 
-            if orb_range is None:
-                continue
-            elif all(
+            if all(
                 [ind not in self._dumms.var[rg] for rg in orb_range]
             ):
                 continue
